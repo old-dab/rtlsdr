@@ -1,9 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
- * FCI FC2580 tuner driver, taken from the kernel driver that can be found
- * on http://linux.terratec.de/tv_en.html
+ * FCI FC2580 silicon tuner driver
  *
- * This driver is a mess, and should be cleaned up/rewritten.
- *
+ * Copyright (C) 2012 Antti Palosaari <crope@iki.fi>
  */
 
 #include <stdint.h>
@@ -189,16 +188,15 @@ int fc2580_set_i2c_register(void *dev, unsigned i2c_register, unsigned data, uns
 /*==============================================================================
        fc2580 RSSI function
 
-  This function is a generic function which returns fc2580's
+  The following context is source code provided by FCI.
 
-  current RSSI value.
+  This function returns fc2580's current RSSI value.
 
   <input parameter>
-	data
+  unsigned char *data
 
   <return value>
-  int
-  	rssi : estimated input power.
+  int rssi : estimated input power.
 
 ==============================================================================*/
 static int fc2580_get_rssi(unsigned char *data)
@@ -404,9 +402,7 @@ err:
 /*==============================================================================
        fc2580 filter BW setting
 
-  This function is a generic function which gets called to change Bandwidth
-
-  frequency of fc2580's channel selection filter
+  This function changes Bandwidth frequency of fc2580's channel selection filter
 
   <input parameter>
   filter_bw
