@@ -146,7 +146,7 @@ void *ctrl_thread_fn(void *arg)
 			tuner_gain = (tuner_gain + 5) / 10;
 			if(old_gain != tuner_gain)
 			{
-				printf("gain = %d dB\n", tuner_gain);
+				printf("gain = %2d dB\r", tuner_gain);
 				old_gain = tuner_gain;
 			}
 		}
