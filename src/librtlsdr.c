@@ -1466,8 +1466,7 @@ int rtlsdr_set_offset_tuning(rtlsdr_dev_t *dev, int on)
 	if (dev->direct_sampling)
 		return -3;
 
-	/* based on keenerds 1/f noise measurements */
-	dev->offs_freq = on ? ((dev->rate / 2) * 170 / 100) : 0;
+	dev->offs_freq = on ? (dev->rate / 2) : 0;
 	r |= rtlsdr_set_if_freq(dev, dev->offs_freq);
 
 	if (dev->tuner && dev->tuner->set_bw) {
