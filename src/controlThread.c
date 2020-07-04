@@ -82,6 +82,11 @@ void *ctrl_thread_fn(void *arg)
 	int haveControlSocket = 0;
 	struct sockaddr_in local, remote;
 	socklen_t rlen;
+	int i, agc_val;
+	unsigned char x;
+	LARGE_INTEGER StartingTime, EndingTime;
+	LARGE_INTEGER Frequency;
+	int64_t Microseconds = 0;
 
 	int error = 0;
 	int len, result, tuner_gain;
@@ -142,20 +147,27 @@ void *ctrl_thread_fn(void *arg)
 				haveControlSocket = 1;
 				break;
 			}
+			//QueryPerformanceCounter(&StartingTime);
+			//QueryPerformanceFrequency(&Frequency);
 			result = rtlsdr_get_tuner_i2c_register(dev, reg_values, &len, &tuner_gain);
 			tuner_gain = (tuner_gain + 5) / 10;
 			if(old_gain != tuner_gain)
 			{
 				printf("gain = %2d dB\r", tuner_gain);
+				//print_demod_register(dev, 3);
 				old_gain = tuner_gain;
 			}
+			/*QueryPerformanceCounter(&EndingTime);
+			Microseconds = EndingTime.QuadPart - StartingTime.QuadPart;
+			Microseconds *= 1000000;
+			Microseconds /= Frequency.QuadPart;
+			printf("Microseconds %d\n",(int)Microseconds);*/
 		}
 
 		setsockopt(controlSocket, SOL_SOCKET, SO_LINGER, (char *)&ling, sizeof(ling));
 
 		printf("Control client accepted!\n");
 		usleep(5000000);
-		old_gain = 0;
 
 		while (1) {
 
@@ -173,7 +185,8 @@ void *ctrl_thread_fn(void *arg)
 			result = rtlsdr_get_tuner_i2c_register(dev, reg_values, &len, &tuner_gain);
 			if(old_gain != tuner_gain)
 			{
-				//printf("gain = %d dB\n", tuner_gain);
+				//printf("len = %d, tuner_gain = %d\n", len, tuner_gain);
+				//print_demod_register(dev, 3);
 				old_gain = tuner_gain;
 			}
 			memset(txbuf, 0, TX_BUF_LEN);
@@ -184,9 +197,26 @@ void *ctrl_thread_fn(void *arg)
 			txbuf[0] = REPORT_I2C_REGS;
 			txbuf[1] = ((len+2) >> 8) & 0xff;
 			txbuf[2] = (len+2) & 0xff;
+			//txbuf[1] = ((len+5) >> 8) & 0xff;
+			//txbuf[2] = (len+5) & 0xff;
+			txbuf[3] = (tuner_gain >> 8) & 0xff;
+			txbuf[4] = tuner_gain & 0xff;
 			/* now the message contents */
 			memcpy(&txbuf[5], reg_values, len);
 			len += 5;
+			/*agc_val = 0;
+			for(i=0; i<8; i++)
+			{
+				rtlsdr_demod_read_regs(dev, 3, 0x05, &x, 1);
+				agc_val += x;
+				printf("%02x ", x);
+			}
+			printf("\n");
+			txbuf[len] = agc_val / 8;
+			len += 1;
+			rtlsdr_demod_read_regs(dev, 3, 0x59, txbuf+len, 2);
+			len += 2;*/
+			//print_demod_register(dev, 3);
 
 			/* now start (possibly blocking) transmission */
 			bytessent = 0;
@@ -223,4 +253,3 @@ close:
 	}
 	return 0;
 }
-
