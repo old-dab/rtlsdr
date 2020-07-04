@@ -597,7 +597,7 @@ static int fc001x_get_signal_strength(uint8_t vga, uint8_t lna, uint8_t mix)
 	int lna_gain = lna_gain_table[lna & 0x1f];
 	int mix_gain = mix_gain_table[mix & 0x0f] + ((mix >> 4) & 3) * 6;
 	if_gain += if_gain_table[(vga >> 5) & 0x07];
-	return if_gain + lna_gain + mix_gain + 40;
+	return if_gain + lna_gain + mix_gain + 60;
 }
 
 static int fc001x_get_i2c_register(void *dev, unsigned char* data, int *len, int *tuner_gain,
