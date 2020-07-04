@@ -66,6 +66,8 @@ struct r82xx_priv {
 	const struct r82xx_config	*cfg;
 	uint8_t						regs[NUM_REGS];
 	uint32_t					int_freq;
+	uint32_t					freq; //in MHz
+	int16_t						abs_gain;
 	uint8_t						input;
 	uint8_t						old_gain;
 	uint8_t						reg8[16];
