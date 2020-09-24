@@ -54,8 +54,8 @@ R1		[7:6]					10
 0x01	[5:0]	ADC				Analog-Digital Converter for detector 3
 ------------------------------------------------------------------------------------
 R2		[7]						1
-0x02	[6]		VCO_INDICATOR	0: PLL has not locked, 1: PLL has locked
-		[5:0]					Analog-Digital Converter for VCO
+0x02	[6]		VCO_LOCK		0: PLL has not locked, 1: PLL has locked
+		[5:0]	VCO_INDICATOR	Analog-Digital Converter for VCO
 	 							000000: min (1.75 GHz), 111111: max (3.6 GHz)
 ------------------------------------------------------------------------------------
 R3		[7:4]	RF_INDICATOR	Mixer gain
@@ -68,7 +68,8 @@ R4		[5:4]					vco_fine_tune
 ------------------------------------------------------------------------------------
 R5		[7] 	LOOP_THROUGH	Loop through ON/OFF
 0x05							0: on, 1: off
-		[6:5]	AIR_CABLE1_IN	0 (only R828D)
+		[6]		AIR_CABLE1_IN	LNA 2 power control (R828D UHF)
+								0:off, 1:on
 		[5] 	PWD_LNA1		LNA 1 power control
 								0:on, 1:off
 		[4] 	LNA_GAIN_MODE	LNA gain mode switch
@@ -159,6 +160,7 @@ R14 	[7:4] 	MIX_VTH_H		MIXER agc power detector voltage threshold high setting
 ------------------------------------------------------------------------------------
 R15		[7]		FLT_EXT_WIDEST	filter extension widest
 0x0F							0: off, 1: on
+		[6:5]					11
 		[4] 	CLK_OUT_ENB		Clock out pin control
 								0: clk output on, 1: off
 		[3]						ring clk
@@ -167,7 +169,7 @@ R15		[7]		FLT_EXT_WIDEST	filter extension widest
 								0: off, 1: on
 		[1] 	CLK_AGC_ENB		AGC clk control
 								0: internal agc clock on, 1: off
-		[0]		GPIO			0
+		[0]		GPIO			0 (only R828D)
 ------------------------------------------------------------------------------------
 R16		[7:5] 	SEL_DIV			PLL to Mixer divider number control
 0x10							000: mixer in = vco out / 2
@@ -193,19 +195,23 @@ R17		[7:6] 	PW_LDO_A		PLL analog low drop out regulator switch
 								01: 2.1V
 								10: 2.0V
 								11: 1.9V
-		[5:3]	CP_CUR			cp_cur
+		[5:3]	CP_CUR			CP current
 								101: 0.2, 111: auto
 		[2:0]					011
 ------------------------------------------------------------------------------------
 R18		[7:5] 					set VCO current
-0x12	[4]						0: enable dithering, 1: disable dithering
+0x12							111: VCO off
+								110: low
+								000: max
+		[4]						0: enable dithering, 1: disable dithering
 		[3]		PW_SDM			0: Enable frac pll, 1: Disable frac pll
 		[2:0]					000
 ------------------------------------------------------------------------------------
-R19		[7]						0
-0x13	[6]						VCO control mode
-								0: auto mode, VCO controlled by PLL
-								1: manual mode, VCO controlled by DAC code[5:0]
+R19		[7]						enable/disable VCO lock indication
+0x13							0: enable, 1: disable
+		[6]						VCO control mode
+								0: wide locking range
+								1: small locking range, controlled by DAC code[5:0]
 		[5:0]	VCO_DAC			DAC for VCO
 	 							000000: min (1.75 GHz), 111111: max (3.6 GHz)
 ------------------------------------------------------------------------------------
@@ -270,9 +276,9 @@ R26		[7:6] 	RF_MUX_POLY		Tracking Filter switch
 								10: low band
 ------------------------------------------------------------------------------------
 R27		[7:4]	TF_NCH			0000 highest corner for LPNF
-0x1B							1111 lowerst corner for LPNF
+0x1B							1111 lowest corner for LPNF
 		[3:0]	TF_LP			0000 highest corner for LPF
-								1111 lowerst corner for LPF
+								1111 lowest corner for LPF
 ------------------------------------------------------------------------------------
 R28		[7:4]	MIXER_TOP		Power detector 3 (Mixer) TOP(take off point) control
 0x1C							0: Highest, 15: Lowest
@@ -317,7 +323,7 @@ static uint8_t r82xx_init_array[] = {
 	0x40, 	//Reg 0x09
 	0xdb, 	//Reg 0x0a
 	0x6b,	//Reg 0x0b
-	0x70,//0xf0, 	//Reg 0x0c
+	0xf0, 	//Reg 0x0c
 	0x53, 	//Reg 0x0d
 	0x53, 	//Reg 0x0e
 	0x68,	//Reg 0x0f
@@ -537,9 +543,9 @@ static int r82xx_read(struct r82xx_priv *priv, uint8_t *buf, int len)
 }*/
 
 static const int16_t abs_freqs[] = {
-	 25, 26, 27, 28, 30, 32, 35, 40, 50, 50, 55, 55, 60, 60, 65, 65, 70, 70, 75, 75, 90, 90,110,110,140,140,180,180,250,250,280,280,310,310,588,588,600,850,1000,1500,1715};
+ 25, 26, 27, 28, 30, 32, 35, 40, 50, 50, 55, 55, 60, 60, 65, 65, 70, 70, 75, 75, 90, 90,110,110,140,140,180,180,250,250,280,280,310,310,588,588,600,850,1000,1500,1715};
 static const int16_t abs_gains[] = {
-	215,203,193,186,175,168,159,156,163,160,162,150,151,151,149,141,142,137,137,115,116,116,117,117,120,120,112,109, 86, 85, 82, 82, 82, 93,115,113,114,130, 136, 157, 166};
+215,203,193,186,175,168,159,156,163,160,162,150,151,151,149,141,142,137,137,115,116,116,117,117,120,120,112,109, 86, 85, 82, 82, 82, 93,115,113,114,130, 136, 157, 166};
 
 int16_t interpolation(int16_t freq, int size, const int16_t *freqs, const int16_t *gains)
 {
@@ -823,11 +829,6 @@ int r82xx_set_i2c_register(struct r82xx_priv *priv, unsigned i2c_register, unsig
 		rtlsdr_reset_demod(priv->rtl_dev);
 		printf("reset demod\n");
 	}
-	//Signal strength on/off
-	if((i2c_register == 32) && (mask & 4))
-	{
-		priv->get_signal_strength = (data & 4) ? 1 : 0;
-	}
 	return r82xx_write_reg_mask(priv, i2c_register & 0xFF, data & 0xff, mask & 0xff);
 }
 
@@ -855,16 +856,13 @@ static const int16_t lna_gains[][16] = {
 static const int r82xx_mixer_gains[]  = {
 	0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 149, 162, 175, 175, 175, 175
 };
-static const uint16_t adc[] = {
-//	0	1	2	3	4	5	6	7	8	9	a	b	c	d	e	f
-	460,450,435,420,410,400,390,380,376,372,368,364,360,355,350,345,
-	340,336,332,328,324,320,316,312,308,304,300,297,294,291,287,283,
-	280,276,272,268,264,260,256,252,248,244,240,230,220,213,207,200,
-	190,180,170,160,150,140,130,120,110,100, 75, 60, 40, 20, 10,  0
-};
 
-static const int16_t if_agc_tab[]  = {-8192, 144, 736,1236,1776,2352,2864,3280,3744,4117,6064,6688,8191};
-static const int16_t if_gain_tab[] = {  -50, -30,   0,  30,  60,  90, 120, 150, 180, 210, 385, 420, 430};
+static const int16_t if_agc_tab[] = {
+	0xe000,0xf800,0xfc80,0x00d0,0x0250,0x0820,0x0f50,0x1030,0x12d0,0x1440,0x1610,0x1820,0x1980,0x1b50,0x1fff
+};
+static const int16_t if_gain_tab[] = {
+	   -60,   -50,   -40,   -20,     0,    80,   200,   220,   300,   340,   380,   420,   440,   460,   470
+};
 
 extern uint16_t rtlsdr_demod_read_reg(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, uint8_t len);
 
@@ -896,47 +894,12 @@ static int r82xx_get_signal_strength(struct r82xx_priv *priv, unsigned char* dat
 	/* LNA gain */
 	lna_index = data[3] & 0xf;
 	if(lna_index)
-	{
 		lna_gain = interpolation(priv->freq, ARRAY_SIZE(lna_freqs), lna_freqs, lna_gains[lna_index]);
-	}
 	else
 		lna_gain = 0;
 	//printf("lna_gain = %d, index = %d\n", lna_gain, lna_index);
 	/* Sum_of_all_gains = if_gain + lna_gain + mixer_gain + absolute gain*/
 	tuner_gain = if_gain + lna_gain + r82xx_mixer_gains[mixer_gain] - priv->abs_gain;
-
-	//switch detektor 3 from mixer to output
-	if(priv->get_signal_strength)
-	{
-		int output, input;
-		// Mixer gain mode = manual mode
-		rc = r82xx_write_reg_mask(priv, 0x07, mixer_gain, 0x1f);
-		if(rc < 0)
-			return rc;
-		//sw_pdect = det3
-		rc = r82xx_write_reg_mask(priv, 0x1e, 0x80, 0x80);
-		if(rc < 0)
-			return rc;
-		usleep(10000);
-		rc = r82xx_read(priv, data, 2);
-		if (rc < 0)
-			return rc;
-		//sw_pdect = det3
-		rc = r82xx_write_reg_mask(priv, 0x1e, 0, 0x80);
-		if(rc < 0)
-			return rc;
-		// Mixer gain mode = auto mode
-		rc = r82xx_write_reg_mask(priv, 0x07, 0x10, 0x10);
-		if(rc < 0)
-			return rc;
-		output = 1260 - adc[data[1] & 0x3f];
-		input = (output - tuner_gain + 5) / 10;
-		if(priv->old_input != input)
-		{
-			printf("Gain=%ddB, Output=%ddBuV, Input=%ddBuV\n", (tuner_gain+5)/10, (output+5)/10, input);
-			priv->old_input = input;
-		}
-	}
 
 	return tuner_gain;
 }
