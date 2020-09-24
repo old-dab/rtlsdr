@@ -114,6 +114,7 @@ static int fc001x_write_reg_mask(void *dev, uint8_t reg, uint8_t data, uint8_t b
  * LNA_POWER_DOWN	0x06	0	Set to 1 to switch off low noise amp
  * RF_OUTDIV_B		0x06	1	Set to select 3 instead of 2 for the
  *								RF output divider
+ * 					0x06	2	Set to 1 to switch off IF amp
  * VCO_SPEED		0x06	3	Select tuning range of VCO:
  *								 0 = Low range, (ca. 2.2 - 3.0GHz)
  *								 1 = High range (ca. 2.8 - 3.6GHz)
@@ -568,7 +569,10 @@ int fc001x_set_bw(void *dev, int bw, uint32_t *applied_bw, int apply)
 	return fc001x_write_reg_mask(dev, 0x06, data, 0xc0);
 }
 
-int fc001x_exit(void *dev) { return 0; }
+int fc001x_exit(void *dev) {
+	// switch off LNA and IF amp
+	return fc001x_write_reg_mask(dev, 0x06, 0x05, 0x05);
+}
 
 /* expose/permit tuner specific i2c register hacking! */
 int fc001x_set_i2c_register(void *dev, unsigned i2c_register, unsigned data, unsigned mask)
