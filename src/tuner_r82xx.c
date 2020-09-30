@@ -45,6 +45,8 @@
 
 
 /*
+Read registers
+
 Reg		Bitmap	Symbol			Description
 ------------------------------------------------------------------------------------
 R0		[7:0]	CHIP_ID			reference check point for read mode: 0x96
@@ -65,26 +67,95 @@ R3		[7:4]	RF_INDICATOR	Mixer gain
 ------------------------------------------------------------------------------------
 R4		[5:4]					vco_fine_tune
 0x04	[3:0]					fil_cal_code
+
+*/
+/*
+Write registers
+
+Reg		Bitmap	Symbol			Description
 ------------------------------------------------------------------------------------
-R5		[7] 	LOOP_THROUGH	Loop through ON/OFF
+R0		[7]		sw_tfq			tracking filter Q enhance
+0x00							0: off, 1:on
+		[6]		sw_ltsum		ltsum pin out switch
+								0: off, 1:on
+		[5:4]	pw_ltsum		ltsum current
+								00: highest, 01: high, 10: low, 11: lowest
+		[3]		ltsum			lt sum LPF function
+								0: finger 12, 1: finger 6
+		[2:0]	ltsum			lt sum HPF function
+								000: finger 3
+								001: finger 7
+								010: finger 11
+								011: finger 15
+								100: finger 11
+								101: finger 15
+								110: finger 19
+								111: finger 23
+------------------------------------------------------------------------------------
+R1		[7:6]	low_gain0		Air LNA, maximum gain feedback low gain
+0x01							00: 1.8k, 01: 1.25k, 10: 1.25k, 11: 1k
+		[5]		low_gain		LNA low gain
+								0: off, 1:on
+		[4]		pwd_150			lna impedence 150
+								0: low gain only, 1: on
+		[3]		more_cap		lna low pass (air2) more cap
+								0: off, 1:on
+		[2]		sel_rfa			air in diplexer
+								0: lna1, 1: lna2
+		[1]		lna_gain		lna manual gain lsb(new)
+		[0]		lna_15db_enb	lna 1.5db enable
+								0: off, 1:on
+------------------------------------------------------------------------------------
+R2		[7]		g30_31			g30_31
+0x02							0: off, 1: on
+		[6]		vcomp			channel filter Q control
+								1: low Q, 0: high Q
+		[5]		vgacomp_15db	vga comp range
+								0: 3dB, 1: 1.5dB
+		[4]		comp_enb		echo compensation
+								0: off, 1: on
+		[3]		b0_en			echo compensation mode
+								0: 3dB, 1: 1.5dB
+		[2:0]	atten			Loop Through attenuation
+	 							0~7
+------------------------------------------------------------------------------------
+R3		[2]		sw_res1			pll reference spur reduce
+0x03							0: off, 1: on
+		[1]		pw_vcoauto		pll vco power auto
+								0: off, 1: on
+		[0]		cp_ix2			pll cp x 2
+								0: off, 1: on
+------------------------------------------------------------------------------------
+R4		[7:6]	lt_hp			new loop through high pass strength
+0x04							00: off, 01: low, 10: low, 11: high
+		[5:4]	lt_att			new loop through attenuation
+								00: off, 01: low, 10: higw, 11: highest
+		[3:2]	pwd150_rf2		airin2 pwd150
+								00: off, 01: low, 10: low, 11: high
+		[1:0]	pwd150_rf1		airin1 pwd150
+								00: off, 01: low, 10: low, 11: high
+------------------------------------------------------------------------------------
+R5		[7:6] 	LOOP_THROUGH	Loop through ON/OFF
 0x05							0: on, 1: off
-		[6]		AIR_CABLE1_IN	LNA 2 power control (R828D UHF)
+		[6]		pwd_cable1		Cable1 LNA (R828D)
 								0:off, 1:on
-		[5] 	PWD_LNA1		LNA 1 power control
+		[5] 	pwd_air			Air in LNA
 								0:on, 1:off
 		[4] 	LNA_GAIN_MODE	LNA gain mode switch
 								0: auto, 1: manual
 		[3:0] 	LNA_GAIN		LNA manual gain control
 								15: max gain, 0: min gain
 ------------------------------------------------------------------------------------
-R6		[7] 	PWD_PDET1		Power detector 1 on/off
+R6		[7] 	pwd_pdect_lna	LNA power detector on/off
 0x06							0: on, 1: off
-		[6] 	PWD_PDET3		Power detector 3 on/off
+		[6] 	pwd_pdect_mix	Power detector 3 on/off
 								0: off, 1: on
 		[5] 	FILT_GAIN		Filter gain 3db
 								0:0db, 1:+3db
-		[4]						1
-		[3]		CABLE2_IN		0 (only R828D)
+		[4]		v6Mhz			Mixer Filter 6MHz function
+								0: off, 1: on
+		[3]		pwd_cable2		Cable2 LNA (R828D)
+								0: off, 1: on
 		[2:0]	PW_LNA			LNA power control
 								000: max, 111: min
 ------------------------------------------------------------------------------------
@@ -119,7 +190,8 @@ R10		[7] 	PWD_FILT		Filter power on/off
 0x0A							0: channel filter off, 1: on
 		[6:5] 	PW_FILT			Filter power control
 								00: highest power, 11: lowest power
-		[4]		FILT_Q			1
+		[4]		FILT_Q			channel filter Q control
+								0: low Q, 1: high Q
 		[3:0] 	FILT_CODE		Filter bandwidth manual fine tune
 								0000 Widest, 1111 narrowest
 ------------------------------------------------------------------------------------
@@ -127,16 +199,17 @@ R11		[7:5] 	FILT_BW			Filter bandwidth manual course tunnel
 0x0B							000: widest
 								010 or 001: middle
 								111: narrowest
-		[4]		CAL_TRIGGER		0
+		[4]		CAL_TRIGGER		channel filter auto calibration start triggering
+								1: start
 		[3:0] 	HP_COR			High pass filter corner control
 								0000: highest
 								1111: lowest
 ------------------------------------------------------------------------------------
-R12		[7]		SW_ADC			Switch Analog-Digital Converter
+R12		[7]		pwd_adc			adc power control
 								0: on, 1: off
 0x0C	[6] 	PWD_VGA			VGA power control
 								0: vga power off, 1: vga power on
-		[5]						1
+		[5]		pw0_vga			0: vga max power, 1: vga min power
 		[4] 	VGA_MODE		VGA GAIN manual / pin selector
 								1: IF vga gain controlled by vagc pin
 								0: IF vga gain controlled by vga_code[3:0]
@@ -160,16 +233,15 @@ R14 	[7:4] 	MIX_VTH_H		MIXER agc power detector voltage threshold high setting
 ------------------------------------------------------------------------------------
 R15		[7]		FLT_EXT_WIDEST	filter extension widest
 0x0F							0: off, 1: on
-		[6:5]					11
+		[6:5]	ldo5vh			0: LDO 2.9V, 1:LDO 3.0V
 		[4] 	CLK_OUT_ENB		Clock out pin control
 								0: clk output on, 1: off
-		[3]						ring clk
-								1: off, 0: on
-		[2]						set cali clk
-								0: off, 1: on
+		[3]		clk_ring_enb	0: ring pll reference clock on, 1: off
+		[2]		clk_filt_enb	0: channel filter calibration clock off, 1: on
 		[1] 	CLK_AGC_ENB		AGC clk control
 								0: internal agc clock on, 1: off
-		[0]		GPIO			0 (only R828D)
+		[0]		gpio_in			GPIO (only R828D)
+								0: 0, 1: 1
 ------------------------------------------------------------------------------------
 R16		[7:5] 	SEL_DIV			PLL to Mixer divider number control
 0x10							000: mixer in = vco out / 2
@@ -181,9 +253,9 @@ R16		[7:5] 	SEL_DIV			PLL to Mixer divider number control
 		[4] 	REFDIV			PLL Reference frequency Divider
 								0 -> fref=xtal_freq
 								1 -> fref=xta_freql / 2 (for Xtal >24MHz)
-		[3]						X'tal Drive
+		[3]		sw_xtal			xtal swing control
 								0: High, 1: Low
-		[2]						1
+		[2]		agc_clk_s2		1
 		[1:0] 	CAPX			Internal xtal cap setting
 								00->no cap
 								01->10pF
@@ -195,20 +267,42 @@ R17		[7:6] 	PW_LDO_A		PLL analog low drop out regulator switch
 								01: 2.1V
 								10: 2.0V
 								11: 1.9V
-		[5:3]	CP_CUR			CP current
-								101: 0.2, 111: auto
-		[2:0]					011
+		[5:3]	pw_cp			charge pump current control
+								000: 0.7 mA
+								001: 0.6 mA
+								010: 0.5 mA
+								011: 0.4 mA
+								100: 0.3 mA
+								101: 0.2 mA
+								110: 0.1 mA
+								111: Auto
+		[2]		pwd_bias		PLL Divider Power
+								0:  on, 1: off
+		[1:0]	pw_hfd			PLL BiasHF
+								00: 100uA
+								01:  50uA
+								10: 200uA
+								11: 150uA
 ------------------------------------------------------------------------------------
-R18		[7:5] 					set VCO current
-0x12							111: VCO off
-								110: low
-								000: max
-		[4]						0: enable dithering, 1: disable dithering
-		[3]		PW_SDM			0: Enable frac pll, 1: Disable frac pll
-		[2:0]					000
+R18		[7:5] 	pw_vco			VCO Core Power
+0x12							000: 0-Max
+								110: low ... 110: 6-Min
+								111: 7-OFF
+		[4]		pw_dither		sigma delta modulator dither function switch
+								0: on, 1: off
+		[3]		PW_SDM			sigma delta modulator switch
+								0: Enable frac pll, 1: Disable frac pll
+		[2:1]	offset			charge pump offset current
+								00: No offset
+								01: 30uA
+								10: 60uA
+								11: 90uA
+		[0]		p_0406			CP Reference Voltage
+								0: 0.4-1.4V
+								1: 0.4-1.2V
 ------------------------------------------------------------------------------------
-R19		[7]						enable/disable VCO lock indication
-0x13							0: enable, 1: disable
+R19		[7]		pw_atune		PLL Auto Tune Clock
+0x13							0: on, 1: off
 		[6]						VCO control mode
 								0: wide locking range
 								1: small locking range, controlled by DAC code[5:0]
@@ -230,17 +324,26 @@ R23		[7:6] 	PW_LDO_D		PLL digital low drop out regulator supply current switch
 								01: 1.8V,4mA
 								10: 2.0V,8mA
 								11: OFF
-		[5:4]	DIV_BUF_CUR		div_buf_cur
+		[5:4]	pw45			prescale 45 current
+								00: 100uA, 01:   50uA
 								10: 200u, 11: 150u
 		[3] 	OPEN_D			Open drain
 								0: High-Z, 1: Low-Z
-		[2:0]					100
+		[2]		pw0_IQ			IQ generator current control
+		[1:0]	pw1_IQ			IQ generator current control
+								00: Div_min, Buf_min
+								01: Div_mid, Buf_max
+								10: Div_mid, Buf_min
+								11: Div_max, Buf_max
 ------------------------------------------------------------------------------------
-R24		[7:6]					01
+R24		[7]		pw_ringout		RingPLL Test VCO Output Enable
+								0: off, 1: on
+		[6]		ring_cp_current	RingPLL charge pump curren
+								0: 15u, 1: 150u
 		[5]		ring_div[0]		ring_div bit 0
-0x18	[4] 					ring power
+0x18	[4] 	ring_pwd		RingPLL power
 								0: off, 1:on
-		[3:0]					n_ring
+		[3:0]	n_ring			RingPLL integer divider number control
 								ring_vco = (16+n_ring)*8*pll_ref, n_ring = 9...14
 ------------------------------------------------------------------------------------
 R25		[7] 	PWD_RFFILT		RF Filter power
@@ -250,7 +353,8 @@ R25		[7] 	PWD_RFFILT		RF Filter power
 		[4] 	SW_AGC			Switch agc_pin
 								0:agc=agc_in
 								1:agc=agc_in2
-		[3:2]					11
+		[3:2]	ring_pw			RingPLL VCO powe
+								00: off, 01: off, 10: min, 11: max
 		[1:0]	ring_div[2:1]	cal_freq = ring_vco / divisor
 								000: ring_freq = ring_vco / 4
 								001: ring_freq = ring_vco / 6
@@ -284,18 +388,23 @@ R28		[7:4]	MIXER_TOP		Power detector 3 (Mixer) TOP(take off point) control
 0x1C							0: Highest, 15: Lowest
 		[3]						discharge mode
 								0: on
-		[2]						1
-		[1]						1: from ring = ring pll in
-		[0]						0
+		[2]		pdect_mode		lna power detector mode switch
+								0: normal, 1: low discharge mode
+		[1]		from_ring		mixer input source select
+								0: rf in, 1: ring pll in
+		[0]		pwd_vco_out		PLL VCO Output Enable
+								0: OFF, 1: ON
 ------------------------------------------------------------------------------------
-R29		[7:6]					11
-0x1D	[5:3]	LNA_TOP			Power detector 1 (LNA) TOP(take off point) control
+R29		[7:6]	dectbw			LNA narrow band power detector bw switch
+0x1D							0: highest bw, ..., 3: lowest bw
+		[5:3]	LNA_TOP			Power detector 1 (LNA) TOP(take off point) control
 								0: Highest, 7: Lowest
 		[2:0] 	PDET2_GAIN		Power detector 2 TOP(take off point) control
 								0: Highest, 7: Lowest
 ------------------------------------------------------------------------------------
-R30		[7]						sw_pdect
-0x1E							1: sw_pdect = det3
+R30		[7]		sw_pdect		det_cap2 input switch
+0x1E							0: for mixer AGC operation
+								1: for ADC readout operation
 	 	[6]		FILTER_EXT		Filter extension under weak signal
 								0: Disable, 1: Enable
 		[5:0]	PDET_CLK		Power detector timing control (LNA discharge current)
@@ -307,7 +416,6 @@ R31		[7]		LT_ATT			Loop through attenuation
 		[1:0]					pw_ring
 								0: -5dB, 1: 0dB, 2: -8dB, 3: -3dB
 ------------------------------------------------------------------------------------
-R0...R4 read, R5...R15 read/write, R16..R31 write
 */
 
 /*
@@ -430,18 +538,14 @@ static const struct r82xx_freq_range freq_ranges[] = {
  */
 static void shadow_store(struct r82xx_priv *priv, uint8_t reg, const uint8_t *val, int len)
 {
-	int r = reg - REG_SHADOW_START;
-
-	if (r < 0) {
-		len += r;
-		r = 0;
-	}
+	if(reg >= NUM_REGS)
+		return;
 	if (len <= 0)
 		return;
-	if (len > NUM_REGS - r)
-		len = NUM_REGS - r;
+	if (len > NUM_REGS - reg)
+		len = NUM_REGS - reg;
 
-	memcpy(&priv->regs[r], val, len);
+	memcpy(&priv->regs[reg], val, len);
 }
 
 static int r82xx_write(struct r82xx_priv *priv, uint8_t reg, uint8_t *buf, int len)
@@ -469,8 +573,6 @@ static inline int r82xx_write_reg(struct r82xx_priv *priv, uint8_t reg, uint8_t 
 
 static int r82xx_read_cache_reg(struct r82xx_priv *priv, int reg)
 {
-	reg -= REG_SHADOW_START;
-
 	if (reg >= 0 && reg < NUM_REGS)
 		return priv->regs[reg];
 	else
@@ -817,19 +919,10 @@ int r82xx_set_gain(struct r82xx_priv *priv, int gain)
 /* expose/permit tuner specific i2c register hacking! */
 int r82xx_set_i2c_register(struct r82xx_priv *priv, unsigned i2c_register, unsigned data, unsigned mask)
 {
-	//AGC-Test
-	if((i2c_register == 32) && (mask & 1))
-	{
-		rtlsdr_set_agc_mode(priv->rtl_dev, data & 1);
-		printf("set agc mode %u\n", data & 1);
-	}
-	//Reset Demod
-	if((i2c_register == 32) && (mask & 2) && (data & 2))
-	{
-		rtlsdr_reset_demod(priv->rtl_dev);
-		printf("reset demod\n");
-	}
-	return r82xx_write_reg_mask(priv, i2c_register & 0xFF, data & 0xff, mask & 0xff);
+	if(i2c_register < NUM_REGS)
+		return r82xx_write_reg_mask(priv, i2c_register & 0xFF, data & 0xff, mask & 0xff);
+	else
+		return -1;
 }
 
 static const int16_t lna_freqs[] = {
@@ -868,21 +961,20 @@ extern uint16_t rtlsdr_demod_read_reg(rtlsdr_dev_t *dev, uint16_t page, uint16_t
 
 static int r82xx_get_signal_strength(struct r82xx_priv *priv, unsigned char* data)
 {
-	int rc;
 	unsigned int lna_index, lna_gain;
-	int tuner_gain;
 	int if_gain = 0;
 	uint8_t mixer_gain = (data[3] >> 4) & 0x0f;
 
 	/* set IMR_G */
 	if(priv->imr_done && (mixer_gain != priv->old_gain))
 	{
-		rc = r82xx_write_reg_mask(priv, 0x08, priv->reg8[mixer_gain], 0x3f);
+		int rc = r82xx_write_reg_mask(priv, 0x08, priv->reg8[mixer_gain], 0x3f);
 		if(rc < 0)
 			return rc;
 		priv->old_gain = mixer_gain;
 	}
 
+	/* IF gain */
 	if((data[0x0c] & 0x10) == 0x10) //IF vga gain controlled by vagc pin
 	{
 		int16_t if_agc_val = rtlsdr_demod_read_reg(priv->rtl_dev, 3, 0x59, 2);
@@ -897,23 +989,22 @@ static int r82xx_get_signal_strength(struct r82xx_priv *priv, unsigned char* dat
 		lna_gain = interpolation(priv->freq, ARRAY_SIZE(lna_freqs), lna_freqs, lna_gains[lna_index]);
 	else
 		lna_gain = 0;
-	//printf("lna_gain = %d, index = %d\n", lna_gain, lna_index);
-	/* Sum_of_all_gains = if_gain + lna_gain + mixer_gain + absolute gain*/
-	tuner_gain = if_gain + lna_gain + r82xx_mixer_gains[mixer_gain] - priv->abs_gain;
 
-	return tuner_gain;
+	/* Sum_of_all_gains = if_gain + lna_gain + mixer_gain + absolute gain*/
+	return if_gain + lna_gain + r82xx_mixer_gains[mixer_gain] - priv->abs_gain;
+
 }
 
 int r82xx_get_i2c_register(struct r82xx_priv *priv, unsigned char* data, int *len, int *strength)
 {
 	int rc;
 
-	*len = REG_SHADOW_START + NUM_REGS;
+	*len = NUM_REGS;
 	// The lower 16 I2C registers can be read with the normal read fct, the upper ones are read from the cache
 	rc = r82xx_read(priv, data, REG_SHADOW_START);
 	if (rc < 0)
 		return rc;
-	memcpy(data+REG_SHADOW_START, priv->regs, NUM_REGS);
+	memcpy(data+REG_SHADOW_START, priv->regs+REG_SHADOW_START, NUM_REGS-REG_SHADOW_START);
 	*strength = r82xx_get_signal_strength(priv, data);
 	return 0;
 }
