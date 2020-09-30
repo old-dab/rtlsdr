@@ -35,7 +35,7 @@
 #define R82XX_IF_FREQ		3570000
 
 #define REG_SHADOW_START	5
-#define NUM_REGS			28 //27
+#define NUM_REGS			32
 
 
 enum r82xx_chip {
