@@ -75,8 +75,6 @@ struct r82xx_priv {
 	int							imr_done;
 	int							init_done;
 	int							sideband;
-	int							get_signal_strength;
-	int							old_input;
 	void 						*rtl_dev;
 };
 
