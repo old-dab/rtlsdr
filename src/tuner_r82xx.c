@@ -67,7 +67,7 @@ R3		[7:4]	RF_INDICATOR	Mixer gain
 ------------------------------------------------------------------------------------
 R4		[5:4]					vco_fine_tune
 0x04	[3:0]					fil_cal_code
-
+------------------------------------------------------------------------------------
 */
 /*
 Write registers
@@ -151,7 +151,7 @@ R6		[7] 	pwd_pdect_lna	LNA power detector on/off
 		[6] 	pwd_pdect_mix	Power detector 3 on/off
 								0: off, 1: on
 		[5] 	FILT_GAIN		Filter gain 3db
-								0:0db, 1:+3db
+								0:0db, 1:+4db (>4MHz bw) or +8db (<4MHz bw)
 		[4]		v6Mhz			Mixer Filter 6MHz function
 								0: off, 1: on
 		[3]		pwd_cable2		Cable2 LNA (R828D)
@@ -329,12 +329,13 @@ R23		[7:6] 	PW_LDO_D		PLL digital low drop out regulator supply current switch
 								10: 200u, 11: 150u
 		[3] 	OPEN_D			Open drain
 								0: High-Z, 1: Low-Z
-		[2]		pw0_IQ			IQ generator current control
-		[1:0]	pw1_IQ			IQ generator current control
+		[2:1]	pw_IQ			IQ generator current control
 								00: Div_min, Buf_min
 								01: Div_mid, Buf_max
 								10: Div_mid, Buf_min
 								11: Div_max, Buf_max
+		[0] 	pwd_IQ			IQ generator power
+								0: on, 1: off
 ------------------------------------------------------------------------------------
 R24		[7]		pw_ringout		RingPLL Test VCO Output Enable
 								0: off, 1: on
