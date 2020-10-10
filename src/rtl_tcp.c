@@ -101,6 +101,7 @@ void usage(void)
 	printf("\n"
 		"Usage:\t[-a listen address]\n"
 		"\t[-b number of buffers (default: 15, set by library)]\n"
+		"\t[-c correct I/Q-Ratio for E4000\n"
 		"\t[-d device index or serial (default: 0)]\n"
 		"\t[-f frequency to tune to [Hz]]\n"
 		"\t[-g gain in dB (default: 0 for auto)]\n"
@@ -141,6 +142,10 @@ static void sighandler(int signum)
 }
 #endif
 
+static int plot_count = 0;
+static int correct_iq = 0;
+static int iq_ratio = 100, old_iq_ratio = 100;
+
 static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 {
 	if(!do_exit) {
@@ -149,6 +154,54 @@ static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 		memcpy(rpt->data, buf, len);
 		rpt->len = len;
 		rpt->next = NULL;
+		plot_count++;
+		if(plot_count==200)
+		{
+			if(correct_iq)
+			{
+				int u;
+				uint32_t i;
+				uint32_t sum_i = 0, sum_q = 0;
+				for(i=0; i<len/2; i++)
+				{
+					u = (buf[2*i]*2)-255;
+					if(u<0) u = -u;
+					sum_i += u; //Betrag der I-Abtastwerte wird addiert
+					u = (buf[2*i+1]*2)-255;
+					if(u<0) u = -u;
+					sum_q += u;	//Betrag der Q-Abtastwerte wird addiert
+				}
+				iq_ratio = (sum_i * 100) / sum_q;
+				if(iq_ratio != old_iq_ratio)
+				{
+					printf("I/Q = %3d%%  \r", iq_ratio);
+					old_iq_ratio = iq_ratio;
+				}
+			}
+			plot_count = 0;
+		}
+		if(iq_ratio > 100)
+		{
+			int u;
+			uint32_t i;
+			for(i=0; i<len/2; i++)
+			{
+				u = (buf[2*i]*2)-255;
+				u = (100 * u) / iq_ratio;
+				rpt->data[2*i] = (u + 255)/2;
+			}
+		}
+		else if(iq_ratio < 100)
+		{
+			int u;
+			uint32_t i;
+			for(i=0; i<len/2; i++)
+			{
+				u = (buf[2*i+1]*2)-255;
+				u = (iq_ratio * u) / 100;
+				rpt->data[2*i+1] = (u + 255)/2;
+			}
+		}
 
 		pthread_mutex_lock(&ll_mutex);
 		if (ll_buffers == NULL) {
@@ -422,7 +475,6 @@ int main(int argc, char **argv)
 	 *
 	 * -> 512*512 -> 1048 ms @ 250 kS  or  81.92 ms @ 3.2 MS (internal default)
 	 * ->  32*512 ->   65 ms @ 250 kS  or   5.12 ms @ 3.2 MS (new default)
-	 *
 	 */
 	uint32_t buf_len = 64 * 512;
 	int dev_index = 0;
@@ -453,13 +505,16 @@ int main(int argc, char **argv)
 	printf("rtl_tcp, an I/Q spectrum server for RTL2832 based DVB-T receivers\n"
 		   "Version 0.92 for QIRX, %s\n\n", __DATE__);
 
-	while ((opt = getopt(argc, argv, "a:b:d:f:g:l:n:O:p:us:vr:w:D:TP:")) != -1) {
+	while ((opt = getopt(argc, argv, "a:b:cd:f:g:l:n:O:p:us:vr:w:D:TP:")) != -1) {
 		switch (opt) {
 		case 'a':
 			addr = optarg;
 			break;
 		case 'b':
 			buf_num = atoi(optarg);
+			break;
+		case 'c':
+			correct_iq = 1;
 			break;
 		case 'd':
 			dev_index = verbose_device_search(optarg);
