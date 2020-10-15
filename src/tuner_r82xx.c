@@ -57,7 +57,7 @@ R1		[7:6]					10
 ------------------------------------------------------------------------------------
 R2		[7]						1
 0x02	[6]		VCO_LOCK		0: PLL has not locked, 1: PLL has locked
-		[5:0]	VCO_INDICATOR	Analog-Digital Converter for VCO
+		[5:0]	VCO_INDICATOR	VCO band
 	 							000000: min (1.75 GHz), 111111: max (3.6 GHz)
 ------------------------------------------------------------------------------------
 R3		[7:4]	RF_INDICATOR	Mixer gain
@@ -303,10 +303,10 @@ R18		[7:5] 	pw_vco			VCO Core Power
 ------------------------------------------------------------------------------------
 R19		[7]		pw_atune		PLL Auto Tune Clock
 0x13							0: on, 1: off
-		[6]						VCO control mode
-								0: wide locking range
-								1: small locking range, controlled by DAC code[5:0]
-		[5:0]	VCO_DAC			DAC for VCO
+		[6]		vco_control		VCO state auto/manual control switch
+								0: auto (VCO autotune)
+								1:  manual (select VCO & VCO bank by sel_vco[5:0])
+		[5:0]	sel_vco			VCO bank
 	 							000000: min (1.75 GHz), 111111: max (3.6 GHz)
 ------------------------------------------------------------------------------------
 R20		[7:6] 	SI2C			PLL integer divider number input Si2c
