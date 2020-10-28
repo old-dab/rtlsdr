@@ -854,9 +854,13 @@ static inline int rtlsdr_set_spectrum_inversion(rtlsdr_dev_t *dev, int sideband)
 
 static int rtlsdr_set_sample_freq_correction(rtlsdr_dev_t *dev, int ppm)
 {
+	int r = 0;
 	int16_t offs = ppm * (-1) * TWO_POW(24) / 1000000;
 
-	return rtlsdr_demod_write_reg(dev, 1, 0x3e, offs & 0x3fff, 2);
+	r |= rtlsdr_demod_write_reg(dev, 1, 0x3e, (offs >> 8) & 0x3f, 1);
+	r |= rtlsdr_demod_write_reg(dev, 1, 0x3f, offs & 0xff, 1);
+
+	return r;
 }
 
 int rtlsdr_set_xtal_freq(rtlsdr_dev_t *dev, uint32_t rtl_freq, uint32_t tuner_freq)
