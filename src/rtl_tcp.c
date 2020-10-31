@@ -503,7 +503,7 @@ int main(int argc, char **argv)
 #endif
 
 	printf("rtl_tcp, an I/Q spectrum server for RTL2832 based DVB-T receivers\n"
-		   "Version 0.92 for QIRX, %s\n\n", __DATE__);
+		   "Version 0.93 for QIRX, %s\n\n", __DATE__);
 
 	while ((opt = getopt(argc, argv, "a:b:cd:f:g:l:n:O:p:us:vr:w:D:TP:")) != -1) {
 		switch (opt) {
@@ -767,10 +767,11 @@ int main(int argc, char **argv)
 out:
 	rtlsdr_close(dev);
 	closesocket(listensocket);
-
-	do_exit_thrd_ctrl = 1;
-	ctrldata.pDoExit = &do_exit_thrd_ctrl;
-	pthread_join(thread_ctrl, &status);
+	if ( port_resp ) {
+		do_exit_thrd_ctrl = 1;
+		ctrldata.pDoExit = &do_exit_thrd_ctrl;
+		pthread_join(thread_ctrl, &status);
+	}
 	closesocket(s);
 #ifdef _WIN32
 	WSACleanup();
