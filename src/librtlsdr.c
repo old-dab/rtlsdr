@@ -56,6 +56,7 @@
 #include "tuner_fc001x.h"
 #include "tuner_fc2580.h"
 #include "tuner_r82xx.h"
+#include "cxd2837.h"
 
 typedef struct rtlsdr_tuner_iface {
 	/* tuner interface */
@@ -132,6 +133,8 @@ struct rtlsdr_dev {
 	struct e4k_state e4k_s;
 	struct r82xx_config r82xx_c;
 	struct r82xx_priv r82xx_p;
+	struct cxd2841er_priv cxd2841_p;
+	enum rtlsdr_demod slave_demod;
 
 	/* -cs- Concurrent lock for the periodic reading of I2C registers */
 	pthread_mutex_t cs_mutex;
@@ -245,6 +248,19 @@ int r820t_set_gain(void *dev, int gain) {
 
 int r820t_set_gain_mode(void *dev, int manual) {
 	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
+	if (devt->slave_demod == SLAVE_DEMOD_CXD2837ER)
+	{
+		if(manual)
+		{
+			if(devt->cxd2841_p.state != STATE_SHUTDOWN)
+				cxd2837_exit(&devt->cxd2841_p);
+		}
+		else
+		{
+			if(devt->cxd2841_p.state == STATE_SHUTDOWN)
+				cxd2837_init(&devt->cxd2841_p);
+		}
+	}
 	return r82xx_set_gain_mode(&devt->r82xx_p, manual);
 }
 
@@ -523,6 +539,7 @@ enum blocks {
 	SYSB  	= 0x0200,
 	IRB   	= 0x0201,
 	TUNB  	= 0x0300,
+	ROMB  	= 0x0400,
 	IICB 	= 0x0600
 };
 
@@ -716,6 +733,20 @@ static int rtlsdr_set_fir(rtlsdr_dev_t *dev)
 	return 0;
 }
 
+int rtlsdr_get_agc_val(void *dev, int *slave_demod)
+{
+	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
+	int if_agc = 0;
+
+	*slave_demod = devt->slave_demod;
+	if (devt->slave_demod == SLAVE_DEMOD_CXD2837ER)
+		if_agc = cxd2837_read_signal_strength(&devt->cxd2841_p);
+
+	else
+		if_agc = rtlsdr_demod_read_reg(dev, 3, 0x59, 2);
+	return if_agc;
+}
+
 int rtlsdr_reset_demod(rtlsdr_dev_t *dev)
 {
 	/* reset demod (bit 3, soft_rst) */
@@ -724,8 +755,6 @@ int rtlsdr_reset_demod(rtlsdr_dev_t *dev)
 	rtlsdr_demod_write_reg(dev, 1, 0x01, r & 0xfb, 1);
 	return 0;
 }
-
-//#include "entfernt.c"
 
 static void rtlsdr_init_baseband(rtlsdr_dev_t *dev)
 {
@@ -793,6 +822,13 @@ static int rtlsdr_deinit_baseband(rtlsdr_dev_t *dev)
 		rtlsdr_set_i2c_repeater(dev, 1);
 		r = dev->tuner->exit(dev); /* deinitialize tuner */
 		rtlsdr_set_i2c_repeater(dev, 0);
+	}
+
+	if (dev->slave_demod == SLAVE_DEMOD_CXD2837ER)
+	{
+		rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
+		if(devt->cxd2841_p.state != STATE_SHUTDOWN)
+			cxd2837_exit(&devt->cxd2841_p);
 	}
 
 	/* poweroff demodulator and ADCs */
@@ -1874,6 +1910,32 @@ found:
 		break;
 	case RTLSDR_TUNER_R828D:
 		dev->tun_xtal = R828D_XTAL_FREQ;
+
+		/* power off slave demod on GPIO0 to reset CXD2837ER */
+		rtlsdr_set_gpio_bit(dev, 0, 0);
+		rtlsdr_set_gpio_output(dev, 0);
+		usleep(50000);
+
+		/* power on slave demod on GPIO0 */
+		rtlsdr_set_gpio_bit(dev, 0, 1);
+
+		/* check slave answers */
+		reg = check_tuner(dev, CXD2837_I2C_ADDR, CXD2837_CHECK_ADDR);
+		if (reg == CXD2837ER_CHIP_ID)
+		{
+			rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
+			fprintf(stderr, "Found Sony CXD2837ER demod\n");
+			dev->slave_demod = SLAVE_DEMOD_CXD2837ER;
+			devt->cxd2841_p.rtl_dev = dev;
+			devt->cxd2841_p.state = STATE_SHUTDOWN;
+			devt->cxd2841_p.xtal = SONY_XTAL_20500;
+			devt->cxd2841_p.flags = (CXD2841ER_AUTO_IFHZ |
+				CXD2841ER_NO_AGCNEG | CXD2841ER_TSBITS |
+				CXD2841ER_EARLY_TUNE | CXD2841ER_TS_SERIAL);
+			devt->cxd2841_p.i2c_addr_slvt = CXD2837_I2C_ADDR;
+			devt->cxd2841_p.i2c_addr_slvx = CXD2837_I2C_ADDR + 4;
+		}
+
 		/* fall-through */
 	case RTLSDR_TUNER_R820T:
 		rtlsdr_demod_write_reg(dev, 1, 0x12, 0x5a, 1);//DVBT_DAGC_TRG_VAL
@@ -1986,7 +2048,6 @@ int rtlsdr_read_sync(rtlsdr_dev_t *dev, void *buf, int len, int *n_read)
 	return libusb_bulk_transfer(dev->devh, 0x81, buf, len, n_read, BULK_TIMEOUT);
 }
 
-
 static void LIBUSB_CALL _libusb_callback(struct libusb_transfer *xfer)
 {
 	rtlsdr_dev_t *dev = (rtlsdr_dev_t *)xfer->user_data;
@@ -1994,7 +2055,6 @@ static void LIBUSB_CALL _libusb_callback(struct libusb_transfer *xfer)
 	if (LIBUSB_TRANSFER_COMPLETED == xfer->status) {
 		if (dev->cb)
 			dev->cb(xfer->buffer, xfer->actual_length, dev->cb_ctx);
-
 		libusb_submit_transfer(xfer); /* resubmit transfer */
 		dev->xfer_errors = 0;
 	} else if (LIBUSB_TRANSFER_CANCELLED != xfer->status) {
@@ -2013,11 +2073,6 @@ static void LIBUSB_CALL _libusb_callback(struct libusb_transfer *xfer)
 		}
 #endif
 	}
-}
-
-int rtlsdr_wait_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx)
-{
-	return rtlsdr_read_async(dev, cb, ctx, 0, 0);
 }
 
 static int _rtlsdr_alloc_async_buffers(rtlsdr_dev_t *dev)
@@ -2404,7 +2459,10 @@ int rtlsdr_set_bias_tee_gpio(rtlsdr_dev_t *dev, int gpio, int on)
 
 int rtlsdr_set_bias_tee(rtlsdr_dev_t *dev, int on)
 {
-	return rtlsdr_set_bias_tee_gpio(dev, 0, on);
+	if (dev->slave_demod == SLAVE_DEMOD_CXD2837ER)
+		return 0;
+	else
+		return rtlsdr_set_bias_tee_gpio(dev, 0, on);
 }
 
 int rtlsdr_set_opt_string(rtlsdr_dev_t *dev, const char *opts, int verbose)
