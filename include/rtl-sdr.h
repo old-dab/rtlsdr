@@ -192,6 +192,14 @@ enum rtlsdr_tuner {
 	RTLSDR_TUNER_R828D
 };
 
+enum rtlsdr_demod {
+	SLAVE_DEMOD_NONE = 0,
+	SLAVE_DEMOD_MN88472,
+	SLAVE_DEMOD_MN88473,
+	SLAVE_DEMOD_SI2168,
+	SLAVE_DEMOD_CXD2837ER
+};
+
 /*!
  * Get the tuner type.
  *
@@ -384,19 +392,6 @@ RTLSDR_API int rtlsdr_reset_buffer(rtlsdr_dev_t *dev);
 RTLSDR_API int rtlsdr_read_sync(rtlsdr_dev_t *dev, void *buf, int len, int *n_read);
 
 typedef void(*rtlsdr_read_async_cb_t)(unsigned char *buf, uint32_t len, void *ctx);
-
-/*!
- * Read samples from the device asynchronously. This function will block until
- * it is being canceled using rtlsdr_cancel_async()
- *
- * NOTE: This function is deprecated and is subject for removal.
- *
- * \param dev the device handle given by rtlsdr_open()
- * \param cb callback function to return received samples
- * \param ctx user specific context to pass via the callback function
- * \return 0 on success
- */
-RTLSDR_API int rtlsdr_wait_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx);
 
 /*!
  * Read samples from the device asynchronously. This function will block until
