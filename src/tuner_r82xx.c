@@ -137,7 +137,7 @@ R4		[7:6]	lt_hp			new loop through high pass strength
 ------------------------------------------------------------------------------------
 R5		[7:6] 	LOOP_THROUGH	Loop through ON/OFF
 0x05							0: on, 1: off
-		[6]		pwd_cable1		Cable1 LNA (R828D)
+		[6]		pwd_cable1		Cable1 LNA (R828D pin 2)
 								0:off, 1:on
 		[5] 	pwd_air			Air in LNA
 								0:on, 1:off
@@ -154,7 +154,7 @@ R6		[7] 	pwd_pdect_lna	LNA power detector on/off
 								0:0db, 1:+4db (>4MHz bw) or +8db (<4MHz bw)
 		[4]		v6Mhz			Mixer Filter 6MHz function
 								0: off, 1: on
-		[3]		pwd_cable2		Cable2 LNA (R828D)
+		[3]		pwd_cable2		Cable2 LNA (R828D pin 3)
 								0: off, 1: on
 		[2:0]	PW_LNA			LNA power control
 								000: max, 111: min
@@ -240,7 +240,7 @@ R15		[7]		FLT_EXT_WIDEST	filter extension widest
 		[2]		clk_filt_enb	0: channel filter calibration clock off, 1: on
 		[1] 	CLK_AGC_ENB		AGC clk control
 								0: internal agc clock on, 1: off
-		[0]		gpio_in			GPIO (only R828D)
+		[0]		GPIO			gpio (R828D pin 1)
 								0: 0, 1: 1
 ------------------------------------------------------------------------------------
 R16		[7:5] 	SEL_DIV			PLL to Mixer divider number control
@@ -327,7 +327,7 @@ R23		[7:6] 	PW_LDO_D		PLL digital low drop out regulator supply current switch
 		[5:4]	pw45			prescale 45 current
 								00: 100uA, 01:   50uA
 								10: 200u, 11: 150u
-		[3] 	OPEN_D			Open drain
+		[3] 	OPEN_D			Open drain (R828D pin 4)
 								0: High-Z, 1: Low-Z
 		[2:1]	pw_IQ			IQ generator current control
 								00: Div_min, Buf_min
@@ -686,9 +686,12 @@ static int r82xx_set_mux(struct r82xx_priv *priv, uint32_t freq)
 	range = &freq_ranges[i];
 
 	/* Open Drain */
-	rc = r82xx_write_reg_mask(priv, 0x17, range->open_d, 0x08);
-	if (rc < 0)
-		return rc;
+	if (priv->cfg->rafael_chip == CHIP_R828D)
+	{
+		rc = r82xx_write_reg_mask(priv, 0x17, range->open_d, 0x08);
+		if (rc < 0)
+			return rc;
+	}
 
 	/* RF_MUX,Polymux */
 	rc = r82xx_write_reg_mask(priv, 0x1a, range->rf_mux_ploy, 0xc3);
@@ -951,6 +954,7 @@ static const int r82xx_mixer_gains[]  = {
 	0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 149, 162, 175, 175, 175, 175
 };
 
+//rtl2832
 static const int16_t if_agc_tab[] = {
 	0xe000,0xf800,0xfc80,0x00d0,0x0250,0x0820,0x0f50,0x1030,0x12d0,0x1440,0x1610,0x1820,0x1980,0x1b50,0x1fff
 };
@@ -958,11 +962,16 @@ static const int16_t if_gain_tab[] = {
 	   -60,   -50,   -40,   -20,     0,    80,   200,   220,   300,   340,   380,   420,   440,   460,   470
 };
 
-extern uint16_t rtlsdr_demod_read_reg(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, uint8_t len);
+//cxd2837er
+static const int16_t if_agc_tab2[]  = {0x000,0x0296,0x03cb,0x4b0,0x5a5,0x6b2,0x79c,0x7fd,0xfff};
+static const int16_t if_gain_tab2[] = {  -55,   -41,   -13,   18,   46,   77,  110,  122,  470};
+
+extern int rtlsdr_get_agc_val(void *dev, int *slave_demod);
 
 static int r82xx_get_signal_strength(struct r82xx_priv *priv, unsigned char* data)
 {
 	unsigned int lna_index, lna_gain;
+	int	slave_demod;
 	int if_gain = 0;
 	uint8_t mixer_gain = (data[3] >> 4) & 0x0f;
 
@@ -978,8 +987,11 @@ static int r82xx_get_signal_strength(struct r82xx_priv *priv, unsigned char* dat
 	/* IF gain */
 	if((data[0x0c] & 0x10) == 0x10) //IF vga gain controlled by vagc pin
 	{
-		int16_t if_agc_val = rtlsdr_demod_read_reg(priv->rtl_dev, 3, 0x59, 2);
-		if_gain = interpolation(if_agc_val, ARRAY_SIZE(if_agc_tab), if_agc_tab, if_gain_tab);
+		int16_t if_agc_val = rtlsdr_get_agc_val(priv->rtl_dev, &slave_demod);
+		if(slave_demod)
+			if_gain = interpolation(if_agc_val, ARRAY_SIZE(if_agc_tab2), if_agc_tab2, if_gain_tab2);
+		else
+			if_gain = interpolation(if_agc_val, ARRAY_SIZE(if_agc_tab), if_agc_tab, if_gain_tab);
 	}
 	else
 		if_gain = (data[0x0c] & 0x0f) * 35;
