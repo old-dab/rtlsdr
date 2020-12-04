@@ -57,7 +57,6 @@ struct r82xx_config {
 	uint8_t i2c_addr;
 	uint32_t xtal;
 	enum r82xx_chip rafael_chip;
-	int use_diplexer;
 	int use_predetect;
 	int	cal_imr;
 };
@@ -80,7 +79,6 @@ struct r82xx_priv {
 
 struct r82xx_freq_range {
 	uint32_t	freq;
-	uint8_t		open_d;
 	uint8_t		rf_mux_ploy;
 	uint8_t		tf_c;
 };
