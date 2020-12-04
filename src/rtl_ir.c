@@ -1,3 +1,4 @@
+
 /*
  * rtl-sdr, turns your Realtek RTL2832 based DVB dongle into a SDR receiver
  * Copyright (C) 2009 Antti Palosaari <crope@iki.fi>
@@ -110,7 +111,6 @@ int main(int argc, char **argv) {
 #endif
 	int r, opt;
 	int i, j;
-	int dev_given = 0;
 	unsigned int wait_usec = 100000;
 	int max_count = 0, iteration_count = 0;
 	int output_binary = 0, output_text = 0, output_packed = 0;
@@ -122,7 +122,6 @@ int main(int argc, char **argv) {
 		switch (opt) {
 		case 'd':
 			dongle.dev_index = verbose_device_search(optarg);
-			dev_given = 1;
 			break;
 		case 'w':
 			wait_usec = atoi(optarg);
