@@ -248,6 +248,7 @@ int r820t_set_gain(void *dev, int gain) {
 
 int r820t_set_gain_mode(void *dev, int manual) {
 	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
+#ifndef DEBUG
 	if (devt->slave_demod == SLAVE_DEMOD_CXD2837ER)
 	{
 		if(manual)
@@ -261,6 +262,7 @@ int r820t_set_gain_mode(void *dev, int manual) {
 				cxd2837_init(&devt->cxd2841_p);
 		}
 	}
+#endif
 	return r82xx_set_gain_mode(&devt->r82xx_p, manual);
 }
 
@@ -485,7 +487,7 @@ enum ir_reg {
 	GP_CFG1				= 0x3008, /* PAD configuration for GPIO4 */
 	SYSINTE_1			= 0x3009,
 	SYSINTS_1			= 0x300A,
-	DEMOD_CTL_1			= 0x300B,
+	DEMOD_CTL1			= 0x300B,
 	IR_SUSPEND			= 0x300C,
 	/* IrDA registers */
 	SYS_IRRC_PSR		= 0x3020, /* IR protocol selection */
@@ -582,19 +584,19 @@ static int rtlsdr_write_reg(rtlsdr_dev_t *dev, uint16_t index, uint16_t addr, ui
 	return r;
 }
 
-static int rtlsdr_write_reg_mask(rtlsdr_dev_t *d, uint16_t block, uint16_t reg, uint8_t val,
+static int rtlsdr_write_reg_mask(rtlsdr_dev_t *dev, uint16_t block, uint16_t reg, uint8_t val,
 		uint8_t mask)
 {
 	uint8_t tmp;
 
 	/* no need for read if whole reg is written */
 	if (mask != 0xff) {
-		tmp = rtlsdr_read_reg(d, block, reg);
+		tmp = rtlsdr_read_reg(dev, block, reg);
 		val &= mask;
 		tmp &= ~mask;
 		val |= tmp;
 	}
-	return rtlsdr_write_reg(d, block, reg, (uint16_t)val, 1);
+	return rtlsdr_write_reg(dev, block, reg, (uint16_t)val, 1);
 }
 
 
@@ -740,11 +742,31 @@ int rtlsdr_get_agc_val(void *dev, int *slave_demod)
 
 	*slave_demod = devt->slave_demod;
 	if (devt->slave_demod == SLAVE_DEMOD_CXD2837ER)
-		if_agc = cxd2837_read_signal_strength(&devt->cxd2841_p);
-
+	{
+		if (devt->cxd2841_p.state != STATE_SHUTDOWN)
+			if_agc = cxd2837_read_signal_strength(&devt->cxd2841_p);
+	}
 	else
 		if_agc = rtlsdr_demod_read_reg(dev, 3, 0x59, 2);
 	return if_agc;
+}
+
+int16_t interpolate(int16_t freq, int size, const int16_t *freqs, const int16_t *gains)
+{
+	int16_t gain = 0;
+	int i;
+
+	if(freq < freqs[0])	freq = freqs[0];
+	if(freq >= freqs[size - 1])
+		gain = gains[size - 1];
+	else
+		for(i=0; i < (size - 1); ++i)
+			if (freq < freqs[i+1])
+			{
+				gain = gains[i] + ((gains[i+1] - gains[i]) * (freq - freqs[i])) / (freqs[i+1] - freqs[i]);
+				break;
+			}
+	return gain;
 }
 
 int rtlsdr_reset_demod(rtlsdr_dev_t *dev)
@@ -769,7 +791,7 @@ static void rtlsdr_init_baseband(rtlsdr_dev_t *dev)
 	rtlsdr_write_reg(dev, IRB, IR_RX_IE, 0x00, 1);
 
 	/* poweron demod */
-	rtlsdr_write_reg(dev, SYSB, DEMOD_CTL_1, 0x22, 1);
+	rtlsdr_write_reg(dev, SYSB, DEMOD_CTL1, 0x22, 1);
 	rtlsdr_write_reg(dev, SYSB, DEMOD_CTL, 0xe8, 1);
 
 	rtlsdr_reset_demod(dev);
@@ -837,6 +859,7 @@ static int rtlsdr_deinit_baseband(rtlsdr_dev_t *dev)
 	return r;
 }
 
+#ifdef DEBUG
 void print_demod_register(rtlsdr_dev_t *dev, uint8_t page)
 {
 	unsigned char data[16];
@@ -856,6 +879,29 @@ void print_demod_register(rtlsdr_dev_t *dev, uint8_t page)
 		printf("\n");
 	}
 }
+
+void print_rom(rtlsdr_dev_t *dev)
+{
+        unsigned char data[64];
+        int i;
+        FILE * pFile;
+        int addr = 0;
+        int len = sizeof(data);
+
+        printf("write file\n");
+        pFile = fopen("rtl2832.bin","wb");
+        if (pFile!=NULL)
+        {
+                for(i=0; i<1024; i++)
+                {
+                        libusb_control_transfer(dev->devh, CTRL_IN, 0, addr, ROMB, data, len, CTRL_TIMEOUT);
+                        fwrite (data, sizeof(char), sizeof(data), pFile);
+                        addr += sizeof(data);
+                }
+                fclose(pFile);
+        }
+}
+#endif
 
 static int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, uint32_t freq)
 {
@@ -1934,6 +1980,9 @@ found:
 				CXD2841ER_EARLY_TUNE | CXD2841ER_TS_SERIAL);
 			devt->cxd2841_p.i2c_addr_slvt = CXD2837_I2C_ADDR;
 			devt->cxd2841_p.i2c_addr_slvx = CXD2837_I2C_ADDR + 4;
+#ifdef DEBUG
+			cxd2837_init(&devt->cxd2841_p);
+#endif
 		}
 
 		/* fall-through */
@@ -2323,6 +2372,7 @@ uint32_t rtlsdr_get_tuner_clock(void *dev)
 	return tuner_freq;
 }
 
+#ifdef DEBUG
 
 /* Infrared (IR) sensor support
  * based on Linux dvb_usb_rtl28xxu drivers/media/usb/dvb-usb-v2/rtl28xxu.h
@@ -2331,14 +2381,8 @@ uint32_t rtlsdr_get_tuner_clock(void *dev)
  * Copyright (C) 2012 Thomas Mair <thomas.mair86@googlemail.com>
  */
 
-struct rtl28xxu_req {
-	uint16_t value;
-	uint16_t index;
-	uint16_t size;
-	uint8_t *data;
-};
-
 struct rtl28xxu_reg_val {
+	uint16_t block;
 	uint16_t reg;
 	uint8_t val;
 };
@@ -2353,19 +2397,20 @@ struct rtl28xxu_reg_val_mask {
 int rtlsdr_ir_query(rtlsdr_dev_t *d, uint8_t *buf, size_t buf_len)
 {
 	int ret = -1;
-	size_t i, len;
-	static const struct rtl28xxu_reg_val_mask refresh_tab[] = {
-		{IRB, IR_RX_IF,			0x03, 0xff},
-		{IRB, IR_RX_BUF_CTRL,	0x80, 0xff},
-		{IRB, IR_RX_CTRL,		0x80, 0xff},
+	size_t i;
+	uint32_t len;
+	static const struct rtl28xxu_reg_val refresh_tab[] = {
+		{IRB, IR_RX_IF,			0x03},
+		{IRB, IR_RX_BUF_CTRL,	0x80},
+		{IRB, IR_RX_CTRL,		0x80},
 	};
 
 	/* init remote controller */
 	if (!d->rc_active) {
 		//fprintf(stderr, "initializing remote controller\n");
 		static const struct rtl28xxu_reg_val_mask init_tab[] = {
-			{USBB, DEMOD_CTL,		0x00, 0x04},
-			{USBB, DEMOD_CTL,		0x00, 0x08},
+			{USBB, DEMOD_CTL1,		0x00, 0x04},
+			{USBB, DEMOD_CTL1,		0x00, 0x08},
 			{USBB, USB_CTRL,		0x20, 0x20},
 			{USBB, GPD,				0x00, 0x08},
 			{USBB, GPOE,			0x08, 0x08},
@@ -2391,30 +2436,27 @@ int rtlsdr_ir_query(rtlsdr_dev_t *d, uint8_t *buf, size_t buf_len)
 				goto err;
 			}
 		}
-
 		d->rc_active = 1;
 		//fprintf(stderr, "rc active\n");
 	}
 	// TODO: option to ir disable
 
 	buf[0] = rtlsdr_read_reg(d, IRB, IR_RX_IF);
-
 	if (buf[0] != 0x83) {
 		if (buf[0] == 0 || // no IR signal
 			// also observed: 0x82, 0x81 - with lengths 1, 5, 0.. unknown, sometimes occurs at edges
 			// "IR not ready"? causes a -7 timeout if we read
 			buf[0] == 0x82 || buf[0] == 0x81) {
 			// graceful exit
-		} else {
-			fprintf(stderr, "read IR_RX_IF unexpected: %.2x\n", buf[0]);
 		}
+		else
+			fprintf(stderr, "read IR_RX_IF unexpected: %.2x\n", buf[0]);
 
 		ret = 0;
 		goto exit;
 	}
 
 	buf[0] = rtlsdr_read_reg(d, IRB, IR_RX_BC);
-
 	len = buf[0];
 	//fprintf(stderr, "read IR_RX_BC len=%d\n", len);
 
@@ -2422,18 +2464,30 @@ int rtlsdr_ir_query(rtlsdr_dev_t *d, uint8_t *buf, size_t buf_len)
 		//fprintf(stderr, "read IR_RX_BC too large for buffer, %lu > %lu\n", buf_len, buf_len);
 		goto exit;
 	}
+	if ((len != 6) && (len < 70)) //message is not complete
+	{
+		uint32_t len2;
+		usleep((71-len)*1000);
+		len2 = rtlsdr_read_reg(d, IRB, IR_RX_BC);
+		/*if(len != len2)
+		//	printf("len=%d, len2=%d\n", len, len2);
+		if(len2 > len)*/
+			len = len2;
+	}
 
-	/* read raw code from hw */
-	ret = rtlsdr_read_array(d, IRB, IR_RX_BUF, buf, len);
-	if (ret < 0)
-		goto err;
-
-	/* let hw receive new code */
-	for (i = 0; i < ARRAY_SIZE(refresh_tab); i++) {
-		ret = rtlsdr_write_reg_mask(d, refresh_tab[i].block, refresh_tab[i].reg,
-				refresh_tab[i].val, refresh_tab[i].mask);
+	if(len > 0)
+	{
+		/* read raw code from hw */
+		ret = rtlsdr_read_array(d, IRB, IR_RX_BUF, buf, len);
 		if (ret < 0)
 			goto err;
+		/* let hw receive new code */
+		for (i = 0; i < ARRAY_SIZE(refresh_tab); i++) {
+			ret = rtlsdr_write_reg(d, refresh_tab[i].block, refresh_tab[i].reg,
+					refresh_tab[i].val, 1);
+			if (ret < 0)
+				goto err;
+		}
 	}
 
 	// On success return length
@@ -2445,6 +2499,7 @@ err:
 	printf("failed=%d\n", ret);
 	return ret;
 }
+#endif
 
 int rtlsdr_set_bias_tee_gpio(rtlsdr_dev_t *dev, int gpio, int on)
 {
