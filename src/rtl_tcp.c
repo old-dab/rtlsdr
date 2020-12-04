@@ -1,4 +1,3 @@
-
 /*
  * rtl-sdr, turns your Realtek RTL2832 based DVB dongle into a SDR receiver
  * Copyright (C) 2012 by Steve Markgraf <steve@steve-m.de>
@@ -24,6 +23,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+
+#ifdef DEBUG
+#include <stdarg.h>
+#include <math.h>
+#endif
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -96,6 +100,48 @@ static int llbuf_num = 500;
 
 static volatile int do_exit = 0;
 
+#ifdef DEBUG
+static FILE *gnuplotPipe; /* Pipe for communicating with gnuplot  */
+static va_list vargs;  /* Holds information about variable arguments */
+static int use_gnuplot = 0; /* Use gnuplot or not (optional) */
+
+/*!
+ * Execute gnuplot commands through the opened pipe.
+ *
+ * \param format string (command) and format specifiers
+ * \return 0 on success
+ */
+static int gnuplot_exec(char *format, ...)
+{
+	va_start(vargs, format);
+  	vfprintf(gnuplotPipe, format, vargs);
+  	va_end(vargs);
+	return 0;
+}
+
+/*!
+ * Open gnuplot pipe.
+ * Set labels & title.
+ * Exits on failure at opening gnuplot pipe.
+ *
+ * \return 0 on success
+ * \return 1 on given -D argument (don't use gnuplot)
+ */
+static int configure_gnuplot(){
+	if (!use_gnuplot)
+		return 1;
+	gnuplotPipe = popen("gnuplot -persist", "w");
+	if (!gnuplotPipe) {
+		printf("Failed to open gnuplot pipe.");
+		exit(1);
+	}
+	gnuplot_exec("set title 'Spannung am AD-Wandler' enhanced\n");
+	gnuplot_exec("set xlabel 'Samples'\n");
+	gnuplot_exec("set ylabel 'Spannung (mV)'\n");
+	return 0;
+}
+#endif
+
 void usage(void)
 {
 	printf("\n"
@@ -115,20 +161,26 @@ void usage(void)
 		"\t[-w rtlsdr tuner bandwidth [Hz]]\n"
 		"\t[-D direct_sampling_mode (default: 0, 1 = I, 2 = Q, 3 = I below threshold, 4 = Q below threshold)]\n"
 		"\t[-D direct_sampling_threshold_frequency (default: 0 use tuner specific frequency threshold for 3 and 4)]\n"
+#ifdef DEBUG
+		"\t[-G use Gnuplot\n"
+		"\t[-I activate infrared remote control\n"
+#endif
 		"\t[-P ppm_error (default: 0)]\n"
 		"\t[-T enable bias-T on GPIO PIN 0 (works for rtl-sdr.com v3 dongles)]\n");
 	exit(1);
 }
 
 #ifdef _WIN32
-
-BOOL WINAPI
-sighandler(int signum)
+BOOL WINAPI sighandler(int signum)
 {
 	if (CTRL_C_EVENT == signum) {
 		fprintf(stderr, "Signal caught, exiting!\n");
 		do_exit = 1;
 		rtlsdr_cancel_async(dev);
+#ifdef DEBUG
+		if(use_gnuplot)
+			pclose(gnuplotPipe);
+#endif
 		return TRUE;
 	}
 	return FALSE;
@@ -138,6 +190,10 @@ static void sighandler(int signum)
 {
 	fprintf(stderr, "Signal caught, exiting!\n");
 	rtlsdr_cancel_async(dev);
+#ifdef DEBUG
+		if(use_gnuplot)
+			pclose(gnuplotPipe);
+#endif
 	do_exit = 1;
 }
 #endif
@@ -157,6 +213,48 @@ static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 		plot_count++;
 		if(plot_count==200)
 		{
+#ifdef DEBUG
+			if(use_gnuplot)
+			{
+				float dbi, dbq;
+				int i, ui, uq;
+				unsigned char u;
+				unsigned char min=255, max=0;
+				int size = 200;
+
+				for(i=0; i<size; i++)
+				{
+					u = buf[2*i];
+					if (u < min)
+						min = u;
+					if (u > max)
+						max = u;
+				}
+				ui = 7*(max - min)/2;
+				dbi = 20 * log10(ui/2.828);
+				for(i=0; i<size; i++)
+				{
+					u = buf[2*i+1];
+					if (u < min)
+						min = u;
+					if (u > max)
+						max = u;
+				}
+				uq = 7*(max - min)/2;
+				dbq = 20 * log10(uq/2.828);
+				printf("I = %dmVss = %.1fdBmV, Q = %dmVss = %.1fdBmV\n", ui, dbi, uq, dbq);
+
+				gnuplot_exec("plot '-' smooth frequency with linespoints lt -1 notitle\n");
+				for(i=0; i<size; i++)
+					gnuplot_exec("%d	%f\n", i, 3.5*(buf[2*i]-127.5));
+				/**!
+				 * Stop giving points to gnuplot with 'e' command.
+				 * Have to flush the output buffer for [read -> graph] persistence.
+				 */
+				gnuplot_exec("e\n");
+				fflush(gnuplotPipe);
+			}
+#endif
 			if(correct_iq)
 			{
 				int u;
@@ -451,12 +549,157 @@ static void *command_worker(void *arg)
 	return NULL;
 }
 
+#ifdef DEBUG
+struct ir_thread_data
+{
+	rtlsdr_dev_t *dev;
+	int ir_table;
+};
+
+static void *ir_thread_fn(void *arg)
+{
+	int r = 0;
+	int i;
+	uint8_t buf[128];
+	unsigned int wait_usec = 80000;
+	struct ir_thread_data *data = (struct ir_thread_data *)arg;
+	rtlsdr_dev_t *dev = data->dev;
+
+	while (!do_exit) {
+		usleep(wait_usec);
+
+		r = rtlsdr_ir_query(dev, buf, sizeof(buf));
+		if (r < 0) {
+			fprintf(stderr, "rtlsdr_ir_query failed: %d\n", r);
+		}
+		if(r == 70) //NEC code
+		{
+			uint32_t code = 0;
+			int leading = 0;
+			int page = -1;
+			for (i = 0; i < r; i++)
+			{
+				int pulse = buf[i] >> 7;
+				int duration = (buf[i] & 0x7f) * 50;
+				if(i == 0) //leading pulse burst
+				{
+					if (pulse == 1)
+						leading += duration;
+					else
+						break;
+				}
+				if(i == 1) //leading pulse burst
+				{
+					if (pulse == 1)
+						leading += duration;
+					else
+						break;
+					if ((leading < 8000) || (leading > 10000))
+						break;
+				}
+				if(i == 2) //space
+				{
+					if ((pulse == 1) || (duration < 4000) || (duration > 5000))
+						break;
+				}
+				if ((i > 2) && ((i & 1) == 1)) //pulse burst
+				{
+					if ((pulse == 0) || (duration < 300) || (duration > 1000))
+						break;
+				}
+				if ((i > 3) && ((i & 1) == 0)) //space
+				{
+					if ((pulse == 1) || (duration < 300) || (duration > 3000))
+						break;
+					if(duration < 1000)
+						code = code >> 1;
+					else
+						code = (code >> 1) | 0x80000000;
+				}
+			}
+			printf("NEC code 0x%0x\n",code);
+			switch ((code >> 16) & 0xff) {
+				case 0x12:
+					page = 0;
+					break;
+				case 0x09:
+					page = 1;
+					break;
+				case 0x1d:
+					page = 2;
+					break;
+				case 0x1f:
+					page = 3;
+					break;
+				case 0x0d:
+					page = 4;
+					break;
+			}
+			if(page >= 0 && page < 5)
+				print_demod_register(dev, page);
+
+
+		}
+		else if(r == 6) //Repeat code
+		{
+			int leading = 0;
+			for (i = 0; i < r; i++)
+			{
+				int pulse = buf[i] >> 7;
+				int duration = (buf[i] & 0x7f) * 50;
+				if(i == 0) //leading pulse burst
+				{
+					if (pulse == 1)
+						leading += duration;
+					else
+						break;
+				}
+				if(i == 1) //leading pulse burst
+				{
+					if (pulse == 1)
+						leading += duration;
+					else
+						break;
+					if ((leading < 8000) || (leading > 10000))
+						break;
+				}
+				if(i == 2) //space
+				{
+					if ((pulse == 1) || (duration < 1500) || (duration > 3000))
+						break;
+				}
+				if (i == 3) //pulse burst
+				{
+					if ((pulse == 0) || (duration < 300) || (duration > 1000))
+						break;
+				}
+			}
+			printf("NEC Repeat code\n");
+		}
+		/*else if(r>0)
+		{
+			int j;
+			printf("length=%d\n",r);
+	 		for (i = 0; i < r; i++)
+	 		{
+				int pulse = buf[i] >> 7;
+				int duration = buf[i] & 0x7f;
+				for (j = 0; j < duration; ++j)
+					printf("%d", pulse);
+			}
+			if (r != 0) printf("\n");
+		}*/
+	}
+	return NULL;
+}
+#endif
 
 int main(int argc, char **argv)
 {
 	int r, opt, i;
 	char* addr = "127.0.0.1";
 	int port = 1234;
+	pthread_t thread_ir;
 	pthread_t thread_ctrl; //-cs- for periodically reading the register values
 	int port_resp = 1;
 	int report_i2c = 1;
@@ -494,6 +737,9 @@ int main(int argc, char **argv)
 	int gains[100];
 	uint32_t bandwidth = 0;
 	int enable_biastee = 0;
+#ifdef DEBUG
+	int port_ir = 0;
+#endif
 
 #ifdef _WIN32
 	WSADATA wsd;
@@ -503,9 +749,13 @@ int main(int argc, char **argv)
 #endif
 
 	printf("rtl_tcp, an I/Q spectrum server for RTL2832 based DVB-T receivers\n"
-		   "Version 0.93 for QIRX, %s\n\n", __DATE__);
+		   "Version 0.94 for QIRX, %s\n\n", __DATE__);
 
+#ifdef DEBUG
+	while ((opt = getopt(argc, argv, "a:b:cd:f:g:l:n:O:p:us:vr:w:D:GITP:")) != -1) {
+#else
 	while ((opt = getopt(argc, argv, "a:b:cd:f:g:l:n:O:p:us:vr:w:D:TP:")) != -1) {
+#endif
 		switch (opt) {
 		case 'a':
 			addr = optarg;
@@ -558,6 +808,14 @@ int main(int argc, char **argv)
 				ds_mode = (enum rtlsdr_ds_mode)ds_temp;
 			else
 				ds_threshold = ds_temp;
+			break;
+#ifdef DEBUG
+		case 'G':
+			use_gnuplot = 1;
+			break;
+#endif
+		case 'I':
+			port_ir = 1;
 			break;
 		case 'P':
 			ppm_error = atoi(optarg);
@@ -647,12 +905,22 @@ int main(int argc, char **argv)
 	/* Reset endpoint before we start reading from it (mandatory) */
 	verbose_reset_buffer(dev);
 
+#ifdef DEBUG
+	configure_gnuplot();
+#endif
+
 	pthread_mutex_init(&exit_cond_lock, NULL);
 	pthread_mutex_init(&ll_mutex, NULL);
 	pthread_mutex_init(&exit_cond_lock, NULL);
 	pthread_cond_init(&cond, NULL);
 	pthread_cond_init(&exit_cond, NULL);
-
+#ifdef DEBUG
+	if(port_ir)
+	{
+		struct ir_thread_data data = {.dev = dev, .ir_table = port_ir};
+		pthread_create(&thread_ir, NULL, &ir_thread_fn, (void *)(&data));
+	}
+#endif
 	if ( port_resp == 1 )
 		port_resp = port + 1;
 	ctrldata.port = port_resp;
