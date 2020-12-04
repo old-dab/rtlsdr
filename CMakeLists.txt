@@ -68,6 +68,7 @@ if(MINGW)
     # Fix printf %zu
     ADD_DEFINITIONS(-D__USE_MINGW_ANSI_STDIO) 
 endif()
+# ADD_DEFINITIONS(-DDEBUG) 
 
 ########################################################################
 # Find build dependencies
