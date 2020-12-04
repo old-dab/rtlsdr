@@ -37,6 +37,9 @@
 #define MHZ(x)	((x)*1000*1000)
 #define KHZ(x)	((x)*1000)
 
+extern int16_t interpolate(int16_t freq, int size, const int16_t *freqs, const int16_t *gains);
+
+
 uint32_t unsigned_delta(uint32_t a, uint32_t b)
 {
 	if (a > b)
@@ -454,19 +457,19 @@ int e4k_tune_freq(struct e4k_state *e4k, uint32_t freq)
  * Gain Control */
 
 static const int8_t if_stage1_gain[] = {
-	-3, 6
+	0, 87
 };
 
 static const int8_t if_stage23_gain[] = {
-	0, 3, 6, 9
+	0, 29, 59, 88
 };
 
 static const int8_t if_stage4_gain[] = {
-	0, 1, 2, 3
+	0, 10, 19, 19
 };
 
 static const int8_t if_stage56_gain[] = {
-	3, 6, 9, 12, 15, 15, 15, 15
+	0, 30, 59, 85, 103, 0, 0, 0
 };
 
 static const int8_t *if_stage_gain[] = {
@@ -689,8 +692,8 @@ int e4k_init(struct e4k_state *e4k)
 	e4k_write_array(e4k, E4K_REG_FILT2, data, 2);
 
 	/* Set LNA */
-	data[0] = 24;   /* High threshold */
-	data[1] = 12;	/* Low threshold */
+	data[0] = 16;	/* High threshold */
+	data[1] = 8;	/* Low threshold */
 	data[2] = 0x18;	/* LNA calib + loop rate */
 	e4k_write_array(e4k, E4K_REG_AGC4, data, 3);
 
@@ -714,18 +717,18 @@ int e4k_init(struct e4k_state *e4k)
 }
 
 //sensitivity mode
-static const uint8_t e4k_reg21[] = {0,  0,   0,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1};
-static const uint8_t e4k_reg22[] = {0,  2,   4,0x20,0x22,0x24,0x21,0x23,0x25,0x27,0x2f,0x37,0x3f,0x3f,0x3f,0x3f,0x3f,0x3f,0x3f,0x3f,0x3f,0x7f};
-static const uint8_t e4k_reg23[] = {0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   1,   2,   3,   4,0x0c,0x14,0x1c,0x24,0x24};
+static const uint8_t e4k_reg21[] = {0,  0,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1};
+static const uint8_t e4k_reg22[] = {0,  2,   0,   2,   4,   1,   3,   5,   7,0x0f,0x17,0x1f,0x1f,0x1f,0x1f,0x3f,0x3f,0x3f,0x3f,0x7f};
+static const uint8_t e4k_reg23[] = {0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   1,   2,   3,   4,0x0c,0x14,0x1c,0x24};
 /*
 //linearity mode
-static const uint8_t e4k_reg21[] = {0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   1,   1,   1};
-static const uint8_t e4k_reg22[] = {0,  0,   0,   0,   0,   0,   0,   0,   0,   8,0x10,0x18,0x1a,0x1c,0x19,0x1b,0x1d,0x1f,0x7f,0x3d,0x3f,0x7f};
-static const uint8_t e4k_reg23[] = {0,  8,0x10,0x18,0x20,0x21,0x22,0x23,0x24,0x24,0x24,0x24,0x24,0x24,0x24,0x24,0x24,0x24,0x24,0x24,0x24,0x24};
+static const uint8_t e4k_reg21[] = {0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   1,   1};
+static const uint8_t e4k_reg22[] = {0,  0,   0,   0,0x10,0x10,0x10,0x10,0x60,0x68,0x70,0x78,0x7a,0x7c,0x79,0x7b,0x7d,0x7f,0x7d,0x7f};
+static const uint8_t e4k_reg23[] = {0,  8,0x10,0x18,0x20,0x21,0x22,0x23,0x24,0x24,0x24,0x24,0x24,0x24,0x24,0x24,0x24,0x24,0x24,0x24};
 */
 
 /* all gain values are expressed in tenths of a dB */
-static const int     e4k_gains[] = {0, 30,  60,  90, 120, 150, 180, 210, 240, 270, 300, 330, 360, 390, 420, 450, 480, 510, 540, 570, 600, 620};
+static const int     e4k_gains[] = {0, 29,  60,  89, 119, 147, 176, 206, 235, 264, 294, 323, 353, 382, 408, 436, 466, 495, 521, 548};
 
 #define GAIN_CNT	(sizeof(e4k_gains) / sizeof(int))
 
@@ -749,25 +752,59 @@ const int *e4k_get_gains(int *len)
 	return e4k_gains;
 }
 
-static const int lna_gain_table[] = {
-	-50, -25, -50, -25, 0, 25, 50, 75, 100, 125, 150, 175, 200, 250, 250, 250
-};
-static const int mixer_gain_table[] = {
-	40, 120
-};
+static const int16_t lna_freqs[] = {
+	  50, 75, 100, 200, 500, 750, 1000, 1250, 1500, 1750, 2000};
+static const int16_t lna_gains[][16] = {
+	{-46, -48, -50, -51, -47, -46, -45, -43, -41, -42, -39},
+	{-32, -32, -32, -32, -29, -29, -27, -25, -25, -25, -23},
+	{  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0},
+	{ 23,  25,  25,  26,  24,  26,  25,  27,  28,  25,  28},
+	{ 57,  57,  56,  56,  53,  55,  55,  55,  56,  59,  59},
+	{ 69,  70,  69,  70,  68,  69,  68,  69,  69,  70,  69},
+	{112, 110, 109, 108, 101, 104, 101, 100, 102, 100,  95},
+	{124, 122, 120, 120, 115, 118, 115, 115, 119, 114, 111},
+	{158, 157, 156, 156, 146, 147, 141, 137, 140, 131, 124},
+	{183, 183, 182, 182, 172, 173, 165, 161, 162, 157, 145},
+	{208, 207, 205, 202, 194, 198, 188, 187, 191, 183, 173},
+	{257, 255, 253, 251, 242, 246, 235, 236, 237, 229, 214}};
 
-static int e4k_get_signal_strength(uint8_t *data)
+static const int16_t mixer_freqs[] = {50,500,1000,1500,2000};
+static const int16_t mixer_gains[] = {63, 61,  57,  56,  50};
+
+static const int16_t abs_freqs[] = {
+	  50,  75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 350, 360,
+ 	 380, 405, 425, 450, 475, 505, 540, 575, 615, 670, 720, 760, 840, 890, 970,
+	1000,1050,1090,1100,1200,1230,1250,1300,1320,1360,1410,1445,1460,1490,1530,
+	1560,1590,1640,1660,1680,1700,1720,1750,1800,1850,1900,1950,2000};
+static const int16_t abs_gains[] = {
+	 111, 116, 116, 117, 119, 119, 118, 117, 117, 115, 115, 112, 111, 103, 104,
+	 106, 108, 110, 111, 113, 114, 116, 117, 120, 122, 126, 129, 138, 149, 165,
+	 160, 143, 125, 120,  70,  74,  78,  77,  77,  79,  77,  78,  80,  80,  79,
+	  79,  80,  79,  78,  82,  86,  86,  85,  76,  59,  36,  13,  -5};
+
+static int e4k_get_signal_strength(struct e4k_state *e4k, uint8_t *data)
 {
-	int lna_gain = lna_gain_table[data[0x14] & 0xf];
-	int mixer_gain = mixer_gain_table[data[0x15] & 1];
-	int if_gain = if_stage1_gain[data[0x16] & 1];
+	int lna_gain, if_gain, abs_gain;
+	int mixer_gain = 0;
+	int freq = e4k->vco.flo/1000000;
+	int lna_index = data[0x14] & 0xf;
+
+	if(lna_index > 13) lna_index = 13;
+	if(lna_index > 1) lna_index -= 2;
+	lna_gain = interpolate(freq, ARRAY_SIZE(lna_freqs), lna_freqs, lna_gains[lna_index]);
+	abs_gain = interpolate(freq, ARRAY_SIZE(abs_gains), abs_freqs, abs_gains);
+
+	if(data[0x15] & 1)
+		mixer_gain += interpolate(freq, ARRAY_SIZE(mixer_freqs), mixer_freqs, mixer_gains);
+
+	if_gain = if_stage1_gain[data[0x16] & 1];
 	if_gain += if_stage23_gain[(data[0x16] >> 1) & 3];
 	if_gain += if_stage23_gain[(data[0x16] >> 3) & 3];
 	if_gain += if_stage4_gain[(data[0x16] >> 5) & 3];
 	if_gain += if_stage56_gain[data[0x17] & 7];
 	if_gain += if_stage56_gain[(data[0x17] >> 3) & 7];
-	if_gain *= 10;
-	return if_gain + mixer_gain + lna_gain;
+	//printf("freq=%d,lna=%d, mix=%d, if=%d, abs=%d\n", freq, lna_gain, mixer_gain, if_gain, abs_gain);
+	return abs_gain + if_gain + mixer_gain + lna_gain;
 }
 
 int e4k_set_i2c_register(struct e4k_state *e4k, unsigned i2c_register, unsigned data, unsigned mask)
@@ -784,7 +821,7 @@ int e4k_get_i2c_register(struct e4k_state *e4k, uint8_t *data, int *len, int *st
 	rc = e4k_read_array(e4k, 0, data, *len);
 	if (rc < 0)
 		return rc;
-	*strength = e4k_get_signal_strength(data);
+	*strength = e4k_get_signal_strength(e4k, data);
 
 	return 0;
 }
