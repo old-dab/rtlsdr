@@ -1,4 +1,3 @@
-
 /*
  * rtl-sdr, turns your Realtek RTL2832 based DVB dongle into a SDR receiver
  * Copyright (C) 2012-2014 by Steve Markgraf <steve@steve-m.de>
@@ -56,7 +55,6 @@
 #include "tuner_fc001x.h"
 #include "tuner_fc2580.h"
 #include "tuner_r82xx.h"
-#include "cxd2837.h"
 
 typedef struct rtlsdr_tuner_iface {
 	/* tuner interface */
@@ -133,7 +131,6 @@ struct rtlsdr_dev {
 	struct e4k_state e4k_s;
 	struct r82xx_config r82xx_c;
 	struct r82xx_priv r82xx_p;
-	struct cxd2841er_priv cxd2841_p;
 	enum rtlsdr_demod slave_demod;
 
 	/* -cs- Concurrent lock for the periodic reading of I2C registers */
@@ -248,21 +245,6 @@ int r820t_set_gain(void *dev, int gain) {
 
 int r820t_set_gain_mode(void *dev, int manual) {
 	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
-#ifndef DEBUG
-	if (devt->slave_demod == SLAVE_DEMOD_CXD2837ER)
-	{
-		if(manual)
-		{
-			if(devt->cxd2841_p.state != STATE_SHUTDOWN)
-				cxd2837_exit(&devt->cxd2841_p);
-		}
-		else
-		{
-			if(devt->cxd2841_p.state == STATE_SHUTDOWN)
-				cxd2837_init(&devt->cxd2841_p);
-		}
-	}
-#endif
 	return r82xx_set_gain_mode(&devt->r82xx_p, manual);
 }
 
@@ -545,7 +527,7 @@ enum blocks {
 	IICB 	= 0x0600
 };
 
-static inline int rtlsdr_read_array(rtlsdr_dev_t *dev, uint16_t index, uint16_t addr, uint8_t *array, uint8_t len)
+static inline int rtlsdr_read_array(rtlsdr_dev_t *dev, uint16_t index, uint16_t addr, uint8_t *array, uint16_t len)
 {
 	return libusb_control_transfer(dev->devh, CTRL_IN, 0, addr, index, array, len, CTRL_TIMEOUT);
 }
@@ -587,16 +569,13 @@ static int rtlsdr_write_reg(rtlsdr_dev_t *dev, uint16_t index, uint16_t addr, ui
 static int rtlsdr_write_reg_mask(rtlsdr_dev_t *dev, uint16_t block, uint16_t reg, uint8_t val,
 		uint8_t mask)
 {
-	uint8_t tmp;
+	uint8_t tmp = rtlsdr_read_reg(dev, block, reg);
 
-	/* no need for read if whole reg is written */
-	if (mask != 0xff) {
-		tmp = rtlsdr_read_reg(dev, block, reg);
-		val &= mask;
-		tmp &= ~mask;
-		val |= tmp;
-	}
-	return rtlsdr_write_reg(dev, block, reg, (uint16_t)val, 1);
+	val = (tmp & ~mask) | (val & mask);
+	if(tmp == val)
+		return 0;
+	else
+		return rtlsdr_write_reg(dev, block, reg, (uint16_t)val, 1);
 }
 
 
@@ -672,23 +651,14 @@ int rtlsdr_demod_write_reg(rtlsdr_dev_t *dev, uint8_t page, uint16_t addr, uint1
 
 void rtlsdr_set_gpio_bit(rtlsdr_dev_t *dev, uint8_t gpio, int val)
 {
-	uint8_t r;
-
-	gpio = 1 << gpio;
-	r = rtlsdr_read_reg(dev, SYSB, GPO);
-	r = val ? (r | gpio) : (r & ~gpio);
-	rtlsdr_write_reg(dev, SYSB, GPO, r, 1);
+	rtlsdr_write_reg_mask(dev, SYSB, GPO, val << gpio, 1 << gpio);
 }
 
 static void rtlsdr_set_gpio_output(rtlsdr_dev_t *dev, uint8_t gpio)
 {
-	uint8_t r;
-
 	gpio = 1 << gpio;
-	r = rtlsdr_read_reg(dev, SYSB, GPD);
-	rtlsdr_write_reg(dev, SYSB, GPD, r & ~gpio, 1);
-	r = rtlsdr_read_reg(dev, SYSB, GPOE);
-	rtlsdr_write_reg(dev, SYSB, GPOE, r | gpio, 1);
+	rtlsdr_write_reg_mask(dev, SYSB, GPD, ~gpio, gpio);
+	rtlsdr_write_reg_mask(dev, SYSB, GPOE, gpio, gpio);
 }
 
 static void rtlsdr_set_i2c_repeater(rtlsdr_dev_t *dev, int on)
@@ -738,17 +708,9 @@ static int rtlsdr_set_fir(rtlsdr_dev_t *dev)
 int rtlsdr_get_agc_val(void *dev, int *slave_demod)
 {
 	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
-	int if_agc = 0;
 
 	*slave_demod = devt->slave_demod;
-	if (devt->slave_demod == SLAVE_DEMOD_CXD2837ER)
-	{
-		if (devt->cxd2841_p.state != STATE_SHUTDOWN)
-			if_agc = cxd2837_read_signal_strength(&devt->cxd2841_p);
-	}
-	else
-		if_agc = rtlsdr_demod_read_reg(dev, 3, 0x59, 2);
-	return if_agc;
+	return rtlsdr_demod_read_reg(dev, 3, 0x59, 2);
 }
 
 int16_t interpolate(int16_t freq, int size, const int16_t *freqs, const int16_t *gains)
@@ -846,13 +808,6 @@ static int rtlsdr_deinit_baseband(rtlsdr_dev_t *dev)
 		rtlsdr_set_i2c_repeater(dev, 0);
 	}
 
-	if (dev->slave_demod == SLAVE_DEMOD_CXD2837ER)
-	{
-		rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
-		if(devt->cxd2841_p.state != STATE_SHUTDOWN)
-			cxd2837_exit(&devt->cxd2841_p);
-	}
-
 	/* poweroff demodulator and ADCs */
 	rtlsdr_write_reg(dev, SYSB, DEMOD_CTL, 0x20, 1);
 
@@ -900,6 +855,28 @@ void print_rom(rtlsdr_dev_t *dev)
                 }
                 fclose(pFile);
         }
+}
+
+void print_usb_register(rtlsdr_dev_t *dev, uint16_t addr)
+{
+	unsigned char data[16];
+	int i, j, index;
+    int len = sizeof(data);
+
+	printf("      0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
+	if(addr < 0x2000) index = ROMB;
+	else if(addr < 0x3000) index = USBB;
+	else if(addr < 0xfc00) index = SYSB;
+	else index = IRB;
+	for(i=0; i<16; i++)
+	{
+		printf("%04x ", addr);
+        libusb_control_transfer(dev->devh, CTRL_IN, 0, addr, index, data, len, CTRL_TIMEOUT);
+		for(j=0; j<16; j++)
+			printf("%02x ", data[j]);
+        addr += sizeof(data);
+		printf("\n");
+	}
 }
 #endif
 
@@ -1076,8 +1053,7 @@ int rtlsdr_write_eeprom(rtlsdr_dev_t *dev, uint8_t *data, uint8_t offset, uint16
 
 int rtlsdr_read_eeprom(rtlsdr_dev_t *dev, uint8_t *data, uint8_t offset, uint16_t len)
 {
-	int r = 0;
-	int i;
+	int r;
 
 	if (!dev)
 		return -1;
@@ -1085,15 +1061,9 @@ int rtlsdr_read_eeprom(rtlsdr_dev_t *dev, uint8_t *data, uint8_t offset, uint16_
 	if ((len + offset) > 256)
 		return -2;
 
-	r = rtlsdr_write_array(dev, IICB, EEPROM_ADDR, &offset, 1);
+	r = rtlsdr_read_array(dev, TUNB, offset << 8 | EEPROM_ADDR, data, len);
 	if (r < 0)
 		return -3;
-
-	for (i = 0; i < len; i++) {
-		r = rtlsdr_read_array(dev, IICB, EEPROM_ADDR, data + i, 1);
-		if (r < 0)
-			return -3;
-	}
 
 	return r;
 }
@@ -1959,30 +1929,47 @@ found:
 
 		/* power off slave demod on GPIO0 to reset CXD2837ER */
 		rtlsdr_set_gpio_bit(dev, 0, 0);
-		rtlsdr_set_gpio_output(dev, 0);
+		rtlsdr_write_reg_mask(dev, SYSB, GPOE, 0x00, 0x01);
 		usleep(50000);
 
 		/* power on slave demod on GPIO0 */
 		rtlsdr_set_gpio_bit(dev, 0, 1);
+		rtlsdr_set_gpio_output(dev, 0);
 
 		/* check slave answers */
+		reg = check_tuner(dev, MN8847X_I2C_ADDR, MN8847X_CHECK_ADDR);
+		if (reg == MN88472_CHIP_ID)
+		{
+			fprintf(stderr, "Found Panasonic MN88472 demod\n");
+			dev->slave_demod = SLAVE_DEMOD_MN88472;
+			goto demod_found;
+		}
+		if (reg == MN88473_CHIP_ID)
+		{
+			fprintf(stderr, "Found Panasonic MN88473 demod\n");
+			dev->slave_demod = SLAVE_DEMOD_MN88473;
+			goto demod_found;
+		}
 		reg = check_tuner(dev, CXD2837_I2C_ADDR, CXD2837_CHECK_ADDR);
 		if (reg == CXD2837ER_CHIP_ID)
 		{
-			rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
 			fprintf(stderr, "Found Sony CXD2837ER demod\n");
 			dev->slave_demod = SLAVE_DEMOD_CXD2837ER;
-			devt->cxd2841_p.rtl_dev = dev;
-			devt->cxd2841_p.state = STATE_SHUTDOWN;
-			devt->cxd2841_p.xtal = SONY_XTAL_20500;
-			devt->cxd2841_p.flags = (CXD2841ER_AUTO_IFHZ |
-				CXD2841ER_NO_AGCNEG | CXD2841ER_TSBITS |
-				CXD2841ER_EARLY_TUNE | CXD2841ER_TS_SERIAL);
-			devt->cxd2841_p.i2c_addr_slvt = CXD2837_I2C_ADDR;
-			devt->cxd2841_p.i2c_addr_slvx = CXD2837_I2C_ADDR + 4;
-#ifdef DEBUG
-			cxd2837_init(&devt->cxd2841_p);
-#endif
+			goto demod_found;
+		}
+		reg = check_tuner(dev, SI2168_I2C_ADDR, SI2168_CHECK_ADDR);
+		if (reg == SI2168_CHIP_ID)
+		{
+			fprintf(stderr, "Found Silicon Labs SI2168 demod\n");
+			dev->slave_demod = SLAVE_DEMOD_SI2168;
+		}
+
+demod_found:
+		if (dev->slave_demod) //switch off dvbt2 demod
+		{
+			rtlsdr_write_reg(dev, SYSB, GPO, 0x88, 1);
+			rtlsdr_write_reg(dev, SYSB, GPOE, 0x9d, 1);
+			rtlsdr_write_reg(dev, SYSB, GPD, 0x02, 1);
 		}
 
 		/* fall-through */
@@ -2372,8 +2359,6 @@ uint32_t rtlsdr_get_tuner_clock(void *dev)
 	return tuner_freq;
 }
 
-#ifdef DEBUG
-
 /* Infrared (IR) sensor support
  * based on Linux dvb_usb_rtl28xxu drivers/media/usb/dvb-usb-v2/rtl28xxu.h
  * Copyright (C) 2009 Antti Palosaari <crope@iki.fi>
@@ -2470,8 +2455,8 @@ int rtlsdr_ir_query(rtlsdr_dev_t *d, uint8_t *buf, size_t buf_len)
 		usleep((71-len)*1000);
 		len2 = rtlsdr_read_reg(d, IRB, IR_RX_BC);
 		/*if(len != len2)
-		//	printf("len=%d, len2=%d\n", len, len2);
-		if(len2 > len)*/
+			printf("len=%d, len2=%d\n", len, len2);*/
+		if(len2 > len)
 			len = len2;
 	}
 
@@ -2499,7 +2484,6 @@ err:
 	printf("failed=%d\n", ret);
 	return ret;
 }
-#endif
 
 int rtlsdr_set_bias_tee_gpio(rtlsdr_dev_t *dev, int gpio, int on)
 {
@@ -2514,7 +2498,7 @@ int rtlsdr_set_bias_tee_gpio(rtlsdr_dev_t *dev, int gpio, int on)
 
 int rtlsdr_set_bias_tee(rtlsdr_dev_t *dev, int on)
 {
-	if (dev->slave_demod == SLAVE_DEMOD_CXD2837ER)
+	if (dev->slave_demod)
 		return 0;
 	else
 		return rtlsdr_set_bias_tee_gpio(dev, 0, on);
@@ -2602,4 +2586,3 @@ void rtlsdr_cal_imr(const int val)
 {
 	cal_imr = val;
 }
-
