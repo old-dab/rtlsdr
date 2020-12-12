@@ -357,7 +357,7 @@ R25		[7] 	PWD_RFFILT		RF Filter power
 		[4] 	SW_AGC			Switch agc_pin
 								0:agc=agc_in
 								1:agc=agc_in2
-		[3:2]	ring_pw			RingPLL VCO powe
+		[3:2]	ring_pw			RingPLL VCO power
 								00: off, 01: off, 10: min, 11: max
 		[1:0]	ring_div[2:1]	cal_freq = ring_vco / divisor
 								000: ring_freq = ring_vco / 4
@@ -879,15 +879,19 @@ int r82xx_set_gain_mode(struct r82xx_priv *priv, int set_manual_gain)
 	return r82xx_write_reg_mask(priv, 0x0c, set_manual_gain ? 0x00 : 0x10, 0x10);
 }
 
+static const int r82xx_gains[] = {
+	0,34,68,102,137,171,207,240,278,312,346,382,416,453,488,527};
+
+#define GAIN_CNT	(sizeof(r82xx_gains) / sizeof(int))
+
 int r82xx_set_gain(struct r82xx_priv *priv, int gain)
 {
+	unsigned int i;
 	/* set VGA gain */
-	int vga_index = gain / 35;
-	if (vga_index > 15)
-		vga_index = 15;
-	else if (vga_index < 0)
-		vga_index = 0;
-	return r82xx_write_reg_mask(priv, 0x0c, vga_index, 0x0f);
+	for (i = 0; i < GAIN_CNT; i++)
+		if ((r82xx_gains[i] >= gain) || (i+1 == GAIN_CNT))
+			break;
+	return r82xx_write_reg_mask(priv, 0x0c, i, 0x0f);
 }
 
 #ifdef DEBUG
@@ -962,7 +966,6 @@ static const int r82xx_mixer_gains[]  = {
  	0, 13, 32, 49, 63, 76, 91, 105, 119, 133, 148, 161, 174, 174, 174, 174
 };
 
-//rtl2832
 static const int16_t if_agc_tab[] = {
 	0xe000,0xf800,0xfc80,0x00d0,0x0250,0x0820,0x0f50,0x1030,0x12d0,0x1440,0x1610,0x1820,0x1980,0x1b50,0x1fff
 };
@@ -970,13 +973,8 @@ static const int16_t if_gain_tab[] = {
 	   -60,   -50,   -40,   -20,     0,    80,   200,   220,   300,   340,   380,   420,   440,   460,   470
 };
 
-//cxd2837er
-static const int16_t if_agc_tab2[]  = {0x000,0x0296,0x03cb,0x4b0,0x5a5,0x6b2,0x79c,0x7fd,0xfff};
-static const int16_t if_gain_tab2[] = {  -55,   -41,   -13,   18,   46,   77,  110,  122,  470};
-
-static const int r82xx_gains[] = {
-	0,34,68,102,137,171,207,240,278,312,346,382,416,453,488,527};
-
+static const int16_t if_agc_tab2[]  = {0xe000,0x10a0,0x1720,0x1fff};
+static const int16_t if_gain_tab2[] = {   -55,     0,   105,   320};
 
 static int r82xx_get_signal_strength(struct r82xx_priv *priv, unsigned char* data)
 {
@@ -1125,8 +1123,6 @@ int r82xx_set_freq(struct r82xx_priv *priv, uint32_t freq)
 	rc = r82xx_set_pll(priv, lo_freq);
 
 err:
-	//if (rc < 0)
-	//	fprintf(stderr, "%s: failed=%d\n", __FUNCTION__, rc);
 	return rc;
 }
 
@@ -1337,9 +1333,6 @@ static int r82xx_imr(struct r82xx_priv *priv, uint8_t range)
 		printf(" %02X", rc);
 	}
 	printf("\n");
-	/*printf("IMR_G = %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\n",
-		priv->reg8[0],priv->reg8[1],priv->reg8[2],priv->reg8[3],priv->reg8[4],priv->reg8[5],
-		priv->reg8[6],priv->reg8[7],priv->reg8[8],priv->reg8[9],priv->reg8[10],priv->reg8[11],priv->reg8[12]);*/
 
 	for(gain = 13; gain < 16; gain++)
 		priv->reg8[gain] = priv->reg8[12];
