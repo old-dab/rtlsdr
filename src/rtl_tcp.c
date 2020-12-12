@@ -399,6 +399,7 @@ static void *tcp_worker(void *arg)
 }
 
 extern void print_demod_register(rtlsdr_dev_t *dev, uint8_t page);
+extern void print_usb_register(rtlsdr_dev_t *dev, uint16_t adr);
 
 static int set_gain_by_index(rtlsdr_dev_t *_dev, unsigned int index)
 {
@@ -576,7 +577,6 @@ static void *ir_thread_fn(void *arg)
 		{
 			uint32_t code = 0;
 			int leading = 0;
-			int page = -1;
 			for (i = 0; i < r; i++)
 			{
 				int pulse = buf[i] >> 7;
@@ -619,24 +619,37 @@ static void *ir_thread_fn(void *arg)
 			}
 			printf("NEC code 0x%0x\n",code);
 			switch ((code >> 16) & 0xff) {
-				case 0x12:
-					page = 0;
+				case 0x12://0
+					print_demod_register(dev, 0);
 					break;
-				case 0x09:
-					page = 1;
+				case 0x09://1
+					print_demod_register(dev, 1);
 					break;
-				case 0x1d:
-					page = 2;
+				case 0x1d://2
+					print_demod_register(dev, 2);
 					break;
-				case 0x1f:
-					page = 3;
+				case 0x1f://3
+					print_demod_register(dev, 3);
 					break;
-				case 0x0d:
-					page = 4;
+				case 0x0d://4
+					print_demod_register(dev, 4);
+					break;
+				case 0x19://5
+					print_usb_register(dev, 0x2000);
+					break;
+				case 0x1b://6
+					print_usb_register(dev, 0x2100);
+					break;
+				case 0x11://7
+					print_usb_register(dev, 0x3000);
+					break;
+				case 0x15://8
+					print_usb_register(dev, 0xfc00);
+					break;
+				case 0x17://9
+					print_usb_register(dev, 0xfd00);
 					break;
 			}
-			if(page >= 0 && page < 5)
-				print_demod_register(dev, page);
 
 
 		}
@@ -719,7 +732,7 @@ int main(int argc, char **argv)
 	 * -> 512*512 -> 1048 ms @ 250 kS  or  81.92 ms @ 3.2 MS (internal default)
 	 * ->  32*512 ->   65 ms @ 250 kS  or   5.12 ms @ 3.2 MS (new default)
 	 */
-	uint32_t buf_len = 64 * 512;
+	uint32_t buf_len = 47 * 512;
 	int dev_index = 0;
 	int dev_given = 0;
 	int gain = 0;
@@ -813,10 +826,10 @@ int main(int argc, char **argv)
 		case 'G':
 			use_gnuplot = 1;
 			break;
-#endif
 		case 'I':
 			port_ir = 1;
 			break;
+#endif
 		case 'P':
 			ppm_error = atoi(optarg);
 			break;
