@@ -200,6 +200,19 @@ enum rtlsdr_demod {
 	SLAVE_DEMOD_CXD2837ER
 };
 
+#define MN8847X_I2C_ADDR	0x38
+#define MN8847X_CHECK_ADDR	0xff
+#define MN88472_CHIP_ID		0x02
+#define MN88473_CHIP_ID		0x03
+
+#define SI2168_I2C_ADDR		0xc8
+#define SI2168_CHECK_ADDR	0x00
+#define SI2168_CHIP_ID		0x80
+
+#define CXD2837_I2C_ADDR	0xd8
+#define CXD2837_CHECK_ADDR	0xfd
+#define CXD2837ER_CHIP_ID	0xb1
+
 /*!
  * Get the tuner type.
  *
