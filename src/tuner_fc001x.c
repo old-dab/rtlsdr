@@ -135,12 +135,14 @@ static int fc001x_write_reg_mask(void *dev, uint8_t reg, uint8_t data, uint8_t b
  * LNA_FORCE		0x0d	0	?
  *					0x0d	1	LNA Gain: 1=variable, 0=fixed
  * AGC_FORCE		0x0d	3	IF-AGC: 0=on, 1=off
+ *					0x0d	4	1 = forcing rc_cal
  *					0x0d	7	Frequency shift 1.16 MHz
  * VCO_CALIB		0x0e	7	Set high then low to calibrate VCO
  *								(fast lock?)
  * VCO_VOLTAGE		0x0e	0-6	Read Control voltage of VCO
  *								(big value -> low freq)
  *							7   ?
+ * RC_cal value		0x10	0-3	rc_cal value
  * IF_GAIN			0x12	0-4	2 dB/step
  *							5-7	1 dB/step
  * LNA_GAIN			0x13	3-4	Low noise amp gain
@@ -154,8 +156,6 @@ static int fc001x_write_reg_mask(void *dev, uint8_t reg, uint8_t data, uint8_t b
  * CHIP_ID			0x00	0-7	Chip ID (constant 0xA3)
  * VHF_TRACK_EN		0x07	4	1= Enable VHF track filter
  * LNA_FORCE		0x0d	0	LNA Gain: 1=variable, 0=maximal
- *					0x0d	4	1 = forcing rc_cal
- * RC_cal value		0x10	0-3	rc_cal value
  * 					0x12	Mixer gain ?
  *								0x00=low, 0x0c=middle, 0x08=high, 0x0a=max
  * IF_GAIN			0x13	0-4	2 dB/step
@@ -183,10 +183,10 @@ int fc0012_init(void *dev)
 		0x82,	/* reg. 0x0b: Output Clock is same as clock frequency,
 			 				  may also be 0x83 */
 		0xfc,	/* reg. 0x0c: depending on AGC Up-Down mode, may need 0xf8 */
-		0x02,	/* reg. 0x0d: AGC Not Forcing & LNA Forcing, 0x02 for DVB-T */
+		0x12,	/* reg. 0x0d: AGC Not Forcing & LNA Forcing, forcing rc_cal */
 		0x00,	/* reg. 0x0e */
 		0x00,	/* reg. 0x0f */
-		0x00,	/* reg. 0x10: may also be 0x0d */
+		0x00,	/* reg. 0x10 */
 		0x00,	/* reg. 0x11 */
 		0x1f,	/* reg. 0x12: Set to maximum gain */
 		0x08,	/* reg. 0x13: Set to Middle Gain: 0x08,
@@ -212,7 +212,7 @@ int fc0013_init(void *dev)
 		0xb8,	/* reg. 0x0a: Disable LO Test Buffer */
 		0x82,	/* reg. 0x0b: CHECK */
 		0xfc,	/* reg. 0x0c: depending on AGC Up-Down mode, may need 0xf8 */
-		0x01,	/* reg. 0x0d: AGC Not Forcing & LNA Forcing, may need 0x02 */
+		0x11,	/* reg. 0x0d: AGC Not Forcing & LNA Forcing, forcing rc_cal */
 		0x00,	/* reg. 0x0e */
 		0x00,	/* reg. 0x0f */
 		0x00,	/* reg. 0x10 */
@@ -548,19 +548,19 @@ int fc001x_set_bw(void *dev, int bw, uint32_t *applied_bw, int apply)
 {
 	uint8_t data;
 
-	if (bw < 6500000)
+	if (bw < 5300000)
 	{
-		*applied_bw = 6000000;
+		*applied_bw = 5000000;
 		data = 0x80;
 	}
-	else if (bw < 7500000)
+	else if (bw < 6000000)
 	{
-		*applied_bw = 7000000;
+		*applied_bw = 5600000;
 		data = 0x40;
 	}
 	else
 	{
-		*applied_bw = 8000000;
+		*applied_bw = 6400000;
 		data = 0x00;
 	}
 	if(!apply)
@@ -569,7 +569,13 @@ int fc001x_set_bw(void *dev, int bw, uint32_t *applied_bw, int apply)
 	return fc001x_write_reg_mask(dev, 0x06, data, 0xc0);
 }
 
-int fc001x_exit(void *dev) {
+int fc0012_exit(void *dev) {
+	// switch off tuner
+	rtlsdr_set_gpio_bit(dev, 4, 1);
+	return 0;
+}
+
+int fc0013_exit(void *dev) {
 	// switch off LNA and IF amp
 	return fc001x_write_reg_mask(dev, 0x06, 0x05, 0x05);
 }
