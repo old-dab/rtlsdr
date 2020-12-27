@@ -34,7 +34,6 @@ int fc0012_init(void *dev);
 int fc0013_init(void *dev);
 int fc0012_set_freq(void *dev, uint32_t freq);
 int fc0013_set_freq(void *dev, uint32_t freq);
-//int fc001x_set_params(void *dev, uint32_t freq, uint32_t bandwidth, enum rtlsdr_tuner tuner_type);
 int fc001x_set_gain_mode(void *dev, int manual);
 int fc0012_set_gain(void *dev, int gain);
 int fc0013_set_gain(void *dev, int gain);
@@ -42,7 +41,8 @@ int fc001x_set_bw(void *dev, int bw, uint32_t *applied_bw, int apply);
 int fc001x_set_i2c_register(void *dev, unsigned i2c_register, unsigned data, unsigned mask);
 int fc0012_get_i2c_register(void *dev, unsigned char *data, int *len, int *strength);
 int fc0013_get_i2c_register(void *dev, unsigned char *data, int *len, int *strength);
-int fc001x_exit(void *dev);
+int fc0012_exit(void *dev);
+int fc0013_exit(void *dev);
 const int *fc001x_get_gains(int *len);
 
 #endif
