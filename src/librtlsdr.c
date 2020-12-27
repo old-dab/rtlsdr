@@ -87,17 +87,24 @@ enum rtlsdr_async_status {
  * The filter is running at XTal frequency. It is symmetric filter with 32
  * coefficients. Only first 16 coefficients are specified, the other 16
  * use the same values but in reversed order. The first coefficient in
- * the array is the outer one, the last, the last is the inner one.
+ * the array is the outer one, the last is the inner one.
  * First 8 coefficients are 8 bit signed integers, the next 8 coefficients
  * are 12 bit signed integers. All coefficients have the same weight.
  *
  * Default FIR coefficients used for DAB/FM by the Windows driver,
  * the DVB driver uses different ones
  */
-static const int fir_default[FIR_LEN] = {
-	-54, -36, -41, -40, -32, -14, 14, 53,	/* 8 bit signed */
-	101, 156, 215, 273, 327, 372, 404, 421	/* 12 bit signed */
+static const int fir_default[][FIR_LEN] = {
+// 1.2 MHz
+	{-54, -36, -41, -40, -32, -14, 14, 53,	/* 8 bit signed */
+	 101, 156, 215, 273, 327, 372, 404, 421},/* 12 bit signed */
+// 590 kHz
+	{-14,36,37,48,63,81,101,122,144,165,185,203,219,231,239,244},
+// 480 kHz
+	{82,46,59,72,85,98,112,127,140,153,164,173,182,188,193,195},
 };
+static const int fir_bw[] = {1200, 600, 500};
+
 static int cal_imr = 0;
 
 struct rtlsdr_dev {
@@ -115,7 +122,7 @@ struct rtlsdr_dev {
 	/* rtl demod context */
 	uint32_t rate; /* Hz */
 	uint32_t rtl_xtal; /* Hz */
-	int fir[FIR_LEN];
+	int fir;
 	int direct_sampling;
 	/* tuner context */
 	enum rtlsdr_tuner tuner_type;
@@ -222,6 +229,9 @@ int r820t_set_freq(void *dev, uint32_t freq) {
 	return r82xx_set_freq(&devt->r82xx_p, freq);
 }
 
+static int rtlsdr_set_fir(rtlsdr_dev_t *dev, int table);
+void print_demod_register(rtlsdr_dev_t *dev, uint8_t page);
+
 int r820t_set_bw(void *dev, int bw, uint32_t *applied_bw, int apply) {
 	int r;
 	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
@@ -235,6 +245,7 @@ int r820t_set_bw(void *dev, int bw, uint32_t *applied_bw, int apply) {
 	r = rtlsdr_set_if_freq(devt, r);
 	if (r)
 		return r;
+
 	return rtlsdr_set_center_freq(devt, devt->freq);
 }
 
@@ -283,13 +294,13 @@ static rtlsdr_tuner_iface_t tuners[] = {
 		e4000_get_i2c_register, NULL, e4k_get_gains
 	},
 	{
-		fc0012_init, fc001x_exit,
+		fc0012_init, fc0012_exit,
 		fc0012_set_freq, fc001x_set_bw, fc0012_set_gain, NULL,
 		fc001x_set_gain_mode, fc001x_set_i2c_register,
 		fc0012_get_i2c_register, NULL, fc001x_get_gains
 	},
 	{
-		fc0013_init, fc001x_exit,
+		fc0013_init, fc0013_exit,
 		fc0013_set_freq, fc001x_set_bw, fc0013_set_gain, NULL,
 		fc001x_set_gain_mode, fc001x_set_i2c_register,
 		fc0013_get_i2c_register, NULL, fc001x_get_gains
@@ -601,7 +612,7 @@ int rtlsdr_i2c_read_fn(void *dev, uint8_t addr, uint8_t reg, uint8_t *buf, int l
 	return rtlsdr_read_array((rtlsdr_dev_t *)dev, TUNB, reg << 8 | addr, buf, len);
 }
 
-uint16_t rtlsdr_demod_read_reg(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, uint8_t len)
+static uint16_t rtlsdr_demod_read_reg(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, uint8_t len)
 {
 	unsigned char data[2];
 
@@ -616,7 +627,7 @@ uint16_t rtlsdr_demod_read_reg(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, 
 		return (data[0] << 8) | data[1];
 }
 
-int rtlsdr_demod_read_regs(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, unsigned char *data, uint8_t len)
+static int rtlsdr_demod_read_regs(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, unsigned char *data, uint8_t len)
 {
 	int r = libusb_control_transfer(dev->devh, CTRL_IN, 0, (addr << 8) | RTL2832_DEMOD_ADDR,
 									page, data, len, CTRL_TIMEOUT);
@@ -626,7 +637,7 @@ int rtlsdr_demod_read_regs(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, unsi
 	return r;
 }
 
-int rtlsdr_demod_write_reg(rtlsdr_dev_t *dev, uint8_t page, uint16_t addr, uint16_t val, uint8_t len)
+static int rtlsdr_demod_write_reg(rtlsdr_dev_t *dev, uint8_t page, uint16_t addr, uint16_t val, uint8_t len)
 {
 	int r;
 	unsigned char data[2];
@@ -672,14 +683,20 @@ static void rtlsdr_set_i2c_repeater(rtlsdr_dev_t *dev, int on)
 		pthread_mutex_unlock(&dev->cs_mutex);
 }
 
-static int rtlsdr_set_fir(rtlsdr_dev_t *dev)
+static int rtlsdr_set_fir(rtlsdr_dev_t *dev, int table)
 {
 	uint8_t fir[20];
-
+	const int *fir_table = fir_default[table];
 	int i;
+
+	if((dev->fir == table) || (table > 2))
+		return 0;
+
+	printf("FIR Filter %d kHz\n", fir_bw[table]);
+	dev->fir = table;
 	/* format: int8_t[8] */
 	for (i = 0; i < 8; ++i) {
-		const int val = dev->fir[i];
+		const int val = fir_table[i];
 		if (val < -128 || val > 127) {
 			return -1;
 		}
@@ -687,8 +704,8 @@ static int rtlsdr_set_fir(rtlsdr_dev_t *dev)
 	}
 	/* format: int12_t[8] */
 	for (i = 0; i < 8; i += 2) {
-		const int val0 = dev->fir[8+i];
-		const int val1 = dev->fir[8+i+1];
+		const int val0 = fir_table[8+i];
+		const int val1 = fir_table[8+i+1];
 		if (val0 < -2048 || val0 > 2047 || val1 < -2048 || val1 > 2047) {
 			return -1;
 		}
@@ -765,7 +782,8 @@ static void rtlsdr_init_baseband(rtlsdr_dev_t *dev)
 	for (i = 0; i < 6; i++)
 		rtlsdr_demod_write_reg(dev, 1, 0x16 + i, 0x00, 1);
 
-	rtlsdr_set_fir(dev);
+	dev->fir = -1;
+	rtlsdr_set_fir(dev, 0);
 
 	/* enable SDR mode, disable DAGC (bit 5) */
 	rtlsdr_demod_write_reg(dev, 0, 0x19, 0x05, 1);
@@ -1176,7 +1194,6 @@ int rtlsdr_set_and_get_tuner_bandwidth(rtlsdr_dev_t *dev, uint32_t bw, uint32_t 
 		}
 		return r;
 	}
-
 	if (dev->tuner->set_bw) {
 		rtlsdr_set_i2c_repeater(dev, 1);
 		r = dev->tuner->set_bw(dev, bw > 0 ? bw : dev->rate, applied_bw, apply_bw);
@@ -1185,6 +1202,26 @@ int rtlsdr_set_and_get_tuner_bandwidth(rtlsdr_dev_t *dev, uint32_t bw, uint32_t 
 			return r;
 		dev->bw = bw;
 	}
+
+	if(bw == 0)
+	{
+		if(dev->rate <= 1000000)
+			rtlsdr_set_fir(dev, 2); //1.0 MHz
+		else if(dev->rate <= 1200000)
+			rtlsdr_set_fir(dev, 1); //1.2 MHz
+		else
+			rtlsdr_set_fir(dev, 0); //2.4 MHz
+	}
+	else
+	{
+		if(bw <= 1000000)
+			rtlsdr_set_fir(dev, 2); //1.0 MHz
+		else if((bw <= 1500000) && (*applied_bw >= 2000000))
+			rtlsdr_set_fir(dev, 1); //1.2 MHz
+		else
+			rtlsdr_set_fir(dev, 0); //2.4 MHz
+	}
+
 	return r;
 }
 
@@ -1724,7 +1761,6 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 		return -ENOMEM;
 
 	memset(dev, 0, sizeof(rtlsdr_dev_t));
-	memcpy(dev->fir, fir_default, sizeof(fir_default));
 
 	r = libusb_init(&dev->ctx);
 	if(r < 0){
@@ -2452,7 +2488,7 @@ int rtlsdr_ir_query(rtlsdr_dev_t *d, uint8_t *buf, size_t buf_len)
 	if ((len != 6) && (len < 70)) //message is not complete
 	{
 		uint32_t len2;
-		usleep((71-len)*1000);
+		usleep((72-len)*1000);
 		len2 = rtlsdr_read_reg(d, IRB, IR_RX_BC);
 		/*if(len != len2)
 			printf("len=%d, len2=%d\n", len, len2);*/
