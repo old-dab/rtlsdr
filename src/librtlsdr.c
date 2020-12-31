@@ -103,7 +103,7 @@ static const int fir_default[][FIR_LEN] = {
 // 480 kHz
 	{82,46,59,72,85,98,112,127,140,153,164,173,182,188,193,195},
 };
-static const int fir_bw[] = {1200, 600, 500};
+static const int fir_bw[] = {2400, 1200, 1000, 300};
 
 static int cal_imr = 0;
 
@@ -467,7 +467,7 @@ enum usb_reg {
 	USB_DBGMUX        	= 0x2FF4  /* debug signal module mux */
 };
 
-enum ir_reg {
+enum sys_reg {
 	/* demod control registers */
 	DEMOD_CTL			= 0x3000, /* control register for DVB-T demodulator */
 	GPO					= 0x3001, /* output value of GPIO */
@@ -482,23 +482,15 @@ enum ir_reg {
 	SYSINTS_1			= 0x300A,
 	DEMOD_CTL1			= 0x300B,
 	IR_SUSPEND			= 0x300C,
-	/* IrDA registers */
-	SYS_IRRC_PSR		= 0x3020, /* IR protocol selection */
-	SYS_IRRC_PER		= 0x3024, /* IR protocol extension */
-	SYS_IRRC_SF			= 0x3028, /* IR sampling frequency */
-	SYS_IRRC_DPIR		= 0x302C, /* IR data package interval */
-	SYS_IRRC_CR			= 0x3030, /* IR control */
-	SYS_IRRC_RP			= 0x3034, /* IR read port */
-	SYS_IRRC_SR			= 0x3038, /* IR status */
 	/* I2C master registers */
-	SYS_I2CCR			= 0x3040, /* I2C clock */
-	SYS_I2CMCR			= 0x3044, /* I2C master control */
-	SYS_I2CMSTR			= 0x3048, /* I2C master SCL timing */
-	SYS_I2CMSR			= 0x304C, /* I2C master status */
-	SYS_I2CMFR			= 0x3050  /* I2C master FIFO */
+	I2CCR				= 0x3040, /* I2C clock */
+	I2CMCR				= 0x3044, /* I2C master control */
+	I2CMSTR				= 0x3048, /* I2C master SCL timing */
+	I2CMSR				= 0x304C, /* I2C master status */
+	I2CMFR				= 0x3050  /* I2C master FIFO */
 };
 
-enum sys_reg {
+enum ir_reg {
 	/* IR registers */
 	IR_RX_BUF			= 0xFC00,
 	IR_RX_IE			= 0xFD00,
@@ -660,6 +652,17 @@ static int rtlsdr_demod_write_reg(rtlsdr_dev_t *dev, uint8_t page, uint16_t addr
 	return (r == len) ? 0 : -1;
 }
 
+static int rtlsdr_demod_write_reg_mask(rtlsdr_dev_t *dev, uint8_t page, uint16_t addr, uint8_t val, uint8_t mask)
+{
+	uint8_t tmp = rtlsdr_demod_read_reg(dev, page, addr, 1);
+
+	val = (tmp & ~mask) | (val & mask);
+	if(tmp == val)
+		return 0;
+	else
+		return rtlsdr_demod_write_reg(dev, page, addr, (uint16_t)val, 1);
+}
+
 void rtlsdr_set_gpio_bit(rtlsdr_dev_t *dev, uint8_t gpio, int val)
 {
 	rtlsdr_write_reg_mask(dev, SYSB, GPO, val << gpio, 1 << gpio);
@@ -677,23 +680,47 @@ static void rtlsdr_set_i2c_repeater(rtlsdr_dev_t *dev, int on)
 	if (on)
 		pthread_mutex_lock(&dev->cs_mutex);
 
-	rtlsdr_demod_write_reg(dev, 1, 0x01, on ? 0x18 : 0x10, 1);
+	rtlsdr_demod_write_reg_mask(dev, 1, 0x01, on ? 0x08 : 0x00, 0x08);
 
 	if (!on)
 		pthread_mutex_unlock(&dev->cs_mutex);
 }
 
+static int Set2(void *dev)
+{
+	uint8_t FM_coe2[6] = {-1, 1, 6, 13, 22, 27};
+    unsigned short addr = 0x1F;
+
+	int i;
+	int rst = 0;
+	for(i=0; i<6; i++)
+	{
+		rst |= rtlsdr_demod_write_reg(dev, 0, addr, FM_coe2[i], 1);
+		addr--;
+	}
+
+	return rst;
+}
+
 static int rtlsdr_set_fir(rtlsdr_dev_t *dev, int table)
 {
 	uint8_t fir[20];
-	const int *fir_table = fir_default[table];
+	const int *fir_table;
 	int i;
 
-	if((dev->fir == table) || (table > 2))
+	if((dev->fir == table) || (table > 3))
 		return 0;
 
+	if(rtlsdr_demod_write_reg_mask(dev, 0, 0x19, (table == 3) ? 0x00 : 0x04, 0x04))
+		return -1;
 	printf("FIR Filter %d kHz\n", fir_bw[table]);
 	dev->fir = table;
+	if(table == 3)
+	{
+		Set2(dev);
+		table = 2;
+	}
+	fir_table = fir_default[table];
 	/* format: int8_t[8] */
 	for (i = 0; i < 8; ++i) {
 		const int val = fir_table[i];
@@ -721,6 +748,7 @@ static int rtlsdr_set_fir(rtlsdr_dev_t *dev, int table)
 
 	return 0;
 }
+
 
 int rtlsdr_get_agc_val(void *dev, int *slave_demod)
 {
@@ -751,10 +779,9 @@ int16_t interpolate(int16_t freq, int size, const int16_t *freqs, const int16_t 
 int rtlsdr_reset_demod(rtlsdr_dev_t *dev)
 {
 	/* reset demod (bit 3, soft_rst) */
-	uint8_t r = rtlsdr_demod_read_reg(dev, 1, 0x01, 1);
-	rtlsdr_demod_write_reg(dev, 1, 0x01, r | 0x04, 1);
-	rtlsdr_demod_write_reg(dev, 1, 0x01, r & 0xfb, 1);
-	return 0;
+	int r = rtlsdr_demod_write_reg_mask(dev, 1, 0x01, 0x04, 0x04);
+	r |= rtlsdr_demod_write_reg_mask(dev, 1, 0x01, 0x00, 0x04);
+	return r;
 }
 
 static void rtlsdr_init_baseband(rtlsdr_dev_t *dev)
@@ -789,6 +816,7 @@ static void rtlsdr_init_baseband(rtlsdr_dev_t *dev)
 	rtlsdr_demod_write_reg(dev, 0, 0x19, 0x05, 1);
 
 	/* init FSM state-holding register */
+	rtlsdr_demod_write_reg(dev, 1, 0x92, 0x00, 1);
 	rtlsdr_demod_write_reg(dev, 1, 0x93, 0xf0, 1);
 	rtlsdr_demod_write_reg(dev, 1, 0x94, 0x0f, 1);
 
@@ -802,11 +830,17 @@ static void rtlsdr_init_baseband(rtlsdr_dev_t *dev)
 	rtlsdr_demod_write_reg(dev, 0, 0x06, 0x80, 1);
 
 	//dab dagc_target;     (S,8,7f) when dagc on
-	rtlsdr_demod_write_reg(dev, 0, 0x17, 0x11, 1);//default: 0x13
+	rtlsdr_demod_write_reg(dev, 0, 0x17, 0x11, 1);
+
+	//dagc_gain_set;  (S,8,1f) when dagc off
+	rtlsdr_demod_write_reg(dev, 0, 0x18, 0x10, 1);
 
 	/* Enable Zero-IF mode (en_bbin bit), DC cancellation (en_dc_est),
 	 * IQ estimation/compensation (en_iq_comp, en_iq_est) */
 	rtlsdr_demod_write_reg(dev, 1, 0xb1, 0x1b, 1);
+
+	/* enable In-phase + Quadrature ADC input */
+	rtlsdr_demod_write_reg(dev, 0, 0x08, 0xcd, 1);
 
 	/* disable 4.096 MHz clock output on pin TP_CK0 */
 	rtlsdr_demod_write_reg(dev, 0, 0x0d, 0x83, 1);
@@ -926,7 +960,7 @@ static int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, uint32_t freq)
 
 static inline int rtlsdr_set_spectrum_inversion(rtlsdr_dev_t *dev, int sideband)
 {
-	return rtlsdr_demod_write_reg(dev, 1, 0x15, sideband ? 0x00 : 0x01, 1);
+	return rtlsdr_demod_write_reg_mask(dev, 1, 0x15, sideband ? 0x00 : 0x01, 0x01);
 }
 
 static int rtlsdr_set_sample_freq_correction(rtlsdr_dev_t *dev, int ppm)
@@ -1205,7 +1239,9 @@ int rtlsdr_set_and_get_tuner_bandwidth(rtlsdr_dev_t *dev, uint32_t bw, uint32_t 
 
 	if(bw == 0)
 	{
-		if(dev->rate <= 1000000)
+		if(dev->rate <= 300000)
+			rtlsdr_set_fir(dev, 3); //0.3 MHz
+		else if(dev->rate <= 1000000)
 			rtlsdr_set_fir(dev, 2); //1.0 MHz
 		else if(dev->rate <= 1200000)
 			rtlsdr_set_fir(dev, 1); //1.2 MHz
@@ -1214,7 +1250,9 @@ int rtlsdr_set_and_get_tuner_bandwidth(rtlsdr_dev_t *dev, uint32_t bw, uint32_t 
 	}
 	else
 	{
-		if(bw <= 1000000)
+		if(bw <= 300000)
+			rtlsdr_set_fir(dev, 3); //0.3 MHz
+		else if(bw <= 1000000)
 			rtlsdr_set_fir(dev, 2); //1.0 MHz
 		else if((bw <= 1500000) && (*applied_bw >= 2000000))
 			rtlsdr_set_fir(dev, 1); //1.2 MHz
@@ -1385,9 +1423,7 @@ int rtlsdr_set_sample_rate(rtlsdr_dev_t *dev, uint32_t samp_rate)
 
 	r |= rtlsdr_set_sample_freq_correction(dev, dev->corr);
 
-	/* reset demod (bit 3, soft_rst) */
-	r |= rtlsdr_demod_write_reg(dev, 1, 0x01, 0x14, 1);
-	r |= rtlsdr_demod_write_reg(dev, 1, 0x01, 0x10, 1);
+	r |= rtlsdr_reset_demod(dev);
 
 	/* recalculate offset frequency if offset tuning is enabled */
 	if (dev->offs_freq)
@@ -1409,14 +1445,14 @@ int rtlsdr_set_testmode(rtlsdr_dev_t *dev, int on)
 	if (!dev)
 		return -1;
 
-	return rtlsdr_demod_write_reg(dev, 0, 0x19, on ? 0x03 : 0x05, 1);
+	return rtlsdr_demod_write_reg_mask(dev, 0, 0x19, on ? 0x02 : 0x00, 0x02);
 }
 
 int rtlsdr_set_agc_mode(rtlsdr_dev_t *dev, int on)
 {
 	if (!dev)
 		return -1;
-	return rtlsdr_demod_write_reg(dev, 0, 0x19, on ? 0x25 : 0x05, 1);
+	return rtlsdr_demod_write_reg_mask(dev, 0, 0x19, on ? 0x20 : 0x00, 0x20);
 }
 
 int rtlsdr_set_direct_sampling(rtlsdr_dev_t *dev, int on)
@@ -2024,7 +2060,7 @@ demod_found:
 		rtlsdr_demod_write_reg(dev, 1, 0x07, 0x40, 1);//DVBT_KRF2
 		rtlsdr_demod_write_reg(dev, 1, 0xcd, 0x10, 1);//DVBT_KRF3
 		rtlsdr_demod_write_reg(dev, 1, 0xce, 0x10, 1);//DVBT_KRF4
-		rtlsdr_demod_write_reg(dev, 0, 0x11, 0xe9f4, 2);//DVBT_AD7_SETTING
+		rtlsdr_demod_write_reg(dev, 0, 0x11, 0xf4, 1);//DVBT_AD7_SETTING
 		/* disable Zero-IF mode */
 		rtlsdr_demod_write_reg(dev, 1, 0xb1, 0x1a, 1);
 		/* only enable In-phase ADC input */
