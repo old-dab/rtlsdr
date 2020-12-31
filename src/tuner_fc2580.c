@@ -16,6 +16,7 @@
 #endif
 
 #include "rtlsdr_i2c.h"
+#include "rtl-sdr.h"
 #include "tuner_fc2580.h"
 
 typedef enum {
@@ -222,7 +223,7 @@ static int fc2580_get_rssi(unsigned char *data)
 				(s_lna==1)? -6 :
 				(s_lna==2)? -11 :
 				(s_lna==3)? -16 : -34 :
-			0;//FC2580_NO_BAND*/
+			0; //FC2580_NO_BAND
 	int ofs_rfvga = -s_rfvga+((s_rfvga>=11)? 1 : 0) + ((s_rfvga>=18)? 1 : 0);
 	int ofs_csf = -6*(s_cfs & 7);
 	int ofs_ifvga = s_ifvga/4;
@@ -477,11 +478,7 @@ int fc2580_set_bw(void *dev, int bw, uint32_t *applied_bw, int apply)
 
 int fc2580_exit(void *dev)
 {
-	int ret;
-
-	ret = fc2580_write(dev, 0x02, 0x0a);
-	if (ret)
-		fprintf(stderr, "%s: failed=%d\n", __FUNCTION__, ret);
-	return ret;
+	rtlsdr_set_gpio_bit(dev, 4, 1);
+	return 0;
 }
 
