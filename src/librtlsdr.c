@@ -688,7 +688,7 @@ static void rtlsdr_set_i2c_repeater(rtlsdr_dev_t *dev, int on)
 
 static int Set2(void *dev)
 {
-	uint8_t FM_coe2[6] = {-1, 1, 6, 13, 22, 27};
+	const uint8_t FM_coe2[6] = {-1, 1, 6, 13, 22, 27};
     unsigned short addr = 0x1F;
 
 	int i;
@@ -715,6 +715,8 @@ static int rtlsdr_set_fir(rtlsdr_dev_t *dev, int table)
 		return -1;
 	printf("FIR Filter %d kHz\n", fir_bw[table]);
 	dev->fir = table;
+	if (dev->offs_freq)
+		rtlsdr_set_offset_tuning(dev, 1);
 	if(table == 3)
 	{
 		Set2(dev);
@@ -1239,9 +1241,7 @@ int rtlsdr_set_and_get_tuner_bandwidth(rtlsdr_dev_t *dev, uint32_t bw, uint32_t 
 
 	if(bw == 0)
 	{
-		if(dev->rate <= 300000)
-			rtlsdr_set_fir(dev, 3); //0.3 MHz
-		else if(dev->rate <= 1000000)
+		if(dev->rate <= 1000000)
 			rtlsdr_set_fir(dev, 2); //1.0 MHz
 		else if(dev->rate <= 1200000)
 			rtlsdr_set_fir(dev, 1); //1.2 MHz
@@ -1595,10 +1595,17 @@ int rtlsdr_set_offset_tuning(rtlsdr_dev_t *dev, int on)
 	if (dev->direct_sampling)
 		return -3;
 
-	dev->offs_freq = on ? (dev->rate / 2) : 0;
+	if(on)
+	{
+		dev->offs_freq = dev->rate / 2;
+		if((dev->offs_freq < 400000) || ((rtlsdr_demod_read_reg(dev, 0, 0x19, 1) & 0x04) == 0))
+			dev->offs_freq = 400000;
+	}
+	else
+		dev->offs_freq = 0;
 	r |= rtlsdr_set_if_freq(dev, dev->offs_freq);
 
-	if (dev->tuner && dev->tuner->set_bw) {
+	if ((dev->tuner && dev->tuner->set_bw) && (dev->bw < (2 * dev->offs_freq))) {
 		uint32_t applied_bw = 0;
 		rtlsdr_set_i2c_repeater(dev, 1);
 		if (on) {
