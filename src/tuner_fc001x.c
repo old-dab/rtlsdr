@@ -1,4 +1,3 @@
-
 /*
  * Fitipower FC0012/FC0013 tuner driver
  *
@@ -108,7 +107,6 @@ static int fc001x_write_reg_mask(void *dev, uint8_t reg, uint8_t data, uint8_t b
  * RF_M				0x02	0-4	Total number of cycles (to-8 and to-9)
  *								in RF divider
  * RF_K_HIGH		0x03	0-6	Bits 8..14 of fractional divider
- *					0x03	7	?
  * RF_K_LOW			0x04	0-7	Bits 0..7 of fractional RF divider
  * RF_OUTDIV_A		0x05	0-7	Power of two required?
  * LNA_POWER_DOWN	0x06	0	Set to 1 to switch off low noise amp
@@ -124,11 +122,8 @@ static int fc001x_write_reg_mask(void *dev, uint8_t reg, uint8_t data, uint8_t b
  *								or 0 for 36MHz
  * <agc params>		0x08	0-7
  *					0x09	0	1=loop_through on, 0=loop_through off
- *					0x09	2	? exchange I/Q ?
- *					0x09	3	?
  * EN_CAL_RSSI		0x09	4 	Enable calibrate RSSI
  *								(Receive Signal Strength Indicator)
- *					0x09	6	?
  *					0x09	7	1=Gap near 0 MHz
  *					0x0c	0-1	AGC Up-Down mode: 0=Realtek-mode
  *					0x0c	7	?
@@ -136,12 +131,11 @@ static int fc001x_write_reg_mask(void *dev, uint8_t reg, uint8_t data, uint8_t b
  *					0x0d	1	LNA Gain: 1=variable, 0=fixed
  * AGC_FORCE		0x0d	3	IF-AGC: 0=on, 1=off
  *					0x0d	4	1 = forcing rc_cal
- *					0x0d	7	Frequency shift 1.16 MHz
+ *					0x0d	7	1 = PLL loop off
  * VCO_CALIB		0x0e	7	Set high then low to calibrate VCO
  *								(fast lock?)
  * VCO_VOLTAGE		0x0e	0-6	Read Control voltage of VCO
  *								(big value -> low freq)
- *							7   ?
  * RC_cal value		0x10	0-3	rc_cal value
  * IF_GAIN			0x12	0-4	2 dB/step
  *							5-7	1 dB/step
@@ -607,7 +601,7 @@ static int fc001x_get_signal_strength(uint8_t vga, uint8_t lna, uint8_t mix)
 	int lna_gain = lna_gain_table[lna & 0x1f];
 	int mix_gain = mix_gain_table[mix & 0x0f] + ((mix >> 4) & 3) * 6;
 	if_gain += if_gain_table[(vga >> 5) & 0x07];
-	return if_gain + lna_gain + mix_gain + 60;
+	return if_gain + lna_gain + mix_gain + 80;
 }
 
 static int fc001x_get_i2c_register(void *dev, unsigned char* data, int *len, int *tuner_gain,
