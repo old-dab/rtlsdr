@@ -1,4 +1,3 @@
-
 /*
  * Rafael Micro R820T/R828D driver
  *
@@ -378,7 +377,7 @@ R26		[7:6] 	RF_MUX_POLY		Tracking Filter switch
 								00: 128 kHz
 								01: 32 kHz
 								10: 8 kHz
-		[1:0]	RFFILT			RF FILTER band selection
+		[1:0]	RFFILT			RF FILTER to reject 3rd harmonic
 								00: highest band
 								01: med band
 								10: low band
@@ -492,32 +491,36 @@ static const struct r82xx_freq_range freq_ranges[] = {
 	/* .rf_mux_ploy = */	0x02,	/* R26[7:6]=0 (LPF)  R26[1:0]=2 (low) */
 	/* .tf_c = */			0x34,	/* R27[7:0]  band12,band11 */
 	}, {
+	/* .freq = */			100,	/* Start freq, in MHz */
+	/* .rf_mux_ploy = */	0x01,	/* R26[7:6]=0 (LPF)  R26[1:0]=1 (middle) */
+	/* .tf_c = */			0x34,	/* R27[7:0]  band12,band11 */
+	}, {
 	/* .freq = */			110,	/* Start freq, in MHz */
-	/* .rf_mux_ploy = */	0x02,	/* R26[7:6]=0 (LPF)  R26[1:0]=2 (low) */
+	/* .rf_mux_ploy = */	0x01,	/* R26[7:6]=0 (LPF)  R26[1:0]=1 (middle) */
 	/* .tf_c = */			0x24,	/* R27[7:0]  band13,band11 */
 	}, {
 	/* .freq = */			140,	/* Start freq, in MHz */
-	/* .rf_mux_ploy = */	0x02,	/* R26[7:6]=0 (LPF)  R26[1:0]=2 (low) */
+	/* .rf_mux_ploy = */	0x01,	/* R26[7:6]=0 (LPF)  R26[1:0]=1 (middle) */
 	/* .tf_c = */			0x14,	/* R27[7:0]  band14,band11 */
 	}, {
 	/* .freq = */			180,	/* Start freq, in MHz */
-	/* .rf_mux_ploy = */	0x02,	/* R26[7:6]=0 (LPF)  R26[1:0]=2 (low) */
+	/* .rf_mux_ploy = */	0x00,	/* R26[7:6]=0 (LPF)  R26[1:0]=0 (high) */
 	/* .tf_c = */			0x13,	/* R27[7:0]  band14,band12 */
 	}, {
 	/* .freq = */			250,	/* Start freq, in MHz */
-	/* .rf_mux_ploy = */	0x02,	/* R26[7:6]=0 (LPF)  R26[1:0]=2 (low) */
+	/* .rf_mux_ploy = */	0x00,	/* R26[7:6]=0 (LPF)  R26[1:0]=0 (high) */
 	/* .tf_c = */			0x11,	/* R27[7:0]  highest,highest */
 	}, {
 	/* .freq = */			280,	/* Start freq, in MHz */
-	/* .rf_mux_ploy = */	0x02,	/* R26[7:6]=0 (LPF)  R26[1:0]=2 (low) */
+	/* .rf_mux_ploy = */	0x00,	/* R26[7:6]=0 (LPF)  R26[1:0]=0 (high) */
 	/* .tf_c = */			0x00,	/* R27[7:0]  highest,highest */
 	}, {
 	/* .freq = */			310,	/* Start freq, in MHz */
-	/* .rf_mux_ploy = */	0x41,	/* R26[7:6]=1 (bypass)  R26[1:0]=1 (middle) */
+	/* .rf_mux_ploy = */	0x40,	/* R26[7:6]=1 (bypass)  R26[1:0]=0 (high) */
 	/* .tf_c = */			0x00,	/* R27[7:0]  highest,highest */
 	}, {
 	/* .freq = */			588,	/* Start freq, in MHz */
-	/* .rf_mux_ploy = */	0x40,	/* R26[7:6]=1 (bypass)  R26[1:0]=0 (highest) */
+	/* .rf_mux_ploy = */	0x40,	/* R26[7:6]=1 (bypass)  R26[1:0]=0 (high) */
 	/* .tf_c = */			0x00,	/* R27[7:0]  highest,highest */
 	}
 };
@@ -634,9 +637,9 @@ static int r82xx_read(struct r82xx_priv *priv, uint8_t *buf, int len)
 }*/
 
 static const int16_t abs_freqs[] = {
- 25, 26, 27, 28, 30, 32, 35, 40, 50, 50, 55, 55, 60, 60, 65, 65, 70, 70, 75, 75, 90, 90,110,110,140,140,180,180,250,250,280,280,310,310,588,588,600,850,1000,1500,1715};
+ 25, 26, 27, 28, 30, 32, 35, 40, 50, 50, 55, 55, 60, 60, 65, 65, 70, 70, 75, 75,100,100,140,140,180,180,250,250,280,280,310,310,588,588,600,850,1000,1500,1715};
 static const int16_t abs_gains[] = {
-215,203,193,186,175,168,159,156,163,160,162,150,151,151,149,141,142,137,137,115,116,116,117,117,120,120,112,109, 86, 85, 82, 82, 82, 93,115,113,114,130, 136, 157, 166};
+215,203,193,186,175,168,159,156,163,160,162,150,151,151,149,141,142,137,137,115,116,127,131,132,144,114, 95, 93, 90, 90, 90, 87,113,113,114,130, 136, 157, 166};
 
 /*
  * r82xx tuning logic
