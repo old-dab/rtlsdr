@@ -51,6 +51,7 @@
 #include "rtl-sdr.h"
 #include "rtl_tcp.h"
 #include "convenience/convenience.h"
+#include "controlThread.h"
 
 #ifdef _WIN32
 #pragma comment(lib, "ws2_32.lib")
@@ -63,8 +64,6 @@ typedef int socklen_t;
 #define SOCKET int
 #define SOCKET_ERROR -1
 #endif
-
-#include "controlThread.h"
 
 static ctrl_thread_data_t ctrldata;
 
@@ -89,6 +88,14 @@ typedef struct { /* structure size must be multiple of 2 bytes */
 	uint32_t tuner_type;
 	uint32_t tuner_gain_count;
 } dongle_info_t;
+
+struct iq_state
+{
+	int plot_count;
+	int correct_iq;
+	int iq_ratio;
+	int old_iq_ratio;
+};
 
 static rtlsdr_dev_t *dev = NULL;
 
@@ -153,6 +160,7 @@ void usage(void)
 		"\t[-g gain in dB (default: 0 for auto)]\n"
 		"\t[-l length of single buffer in units of 512 samples (default: 64)]\n"
 		"\t[-n max number of linked list buffers to keep (default: 500)]\n"
+		"\t[-o set offset tuning\n"
 		"\t[-p listen port (default: 1234)]\n"
 		"\t[-r response port (default: listen port + 1)]\n"
 		"\t[-s samplerate in Hz (default: 2048000 Hz)]\n"
@@ -163,7 +171,7 @@ void usage(void)
 		"\t[-D direct_sampling_threshold_frequency (default: 0 use tuner specific frequency threshold for 3 and 4)]\n"
 #ifdef DEBUG
 		"\t[-G use Gnuplot\n"
-		"\t[-I activate infrared remote control\n"
+		"\t[-I debug input from keyboard\n"
 #endif
 		"\t[-P ppm_error (default: 0)]\n"
 		"\t[-T enable bias-T on GPIO PIN 0 (works for rtl-sdr.com v3 dongles)]\n");
@@ -198,20 +206,21 @@ static void sighandler(int signum)
 }
 #endif
 
-static int plot_count = 0;
-static int correct_iq = 0;
-static int iq_ratio = 100, old_iq_ratio = 100;
-
 static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 {
+	struct iq_state *iq = ctx;
+
+	if (!ctx) {
+		return;}
+
 	if(!do_exit) {
 		struct llist *rpt = (struct llist*)malloc(sizeof(struct llist));
 		rpt->data = (char*)malloc(len);
 		memcpy(rpt->data, buf, len);
 		rpt->len = len;
 		rpt->next = NULL;
-		plot_count++;
-		if(plot_count==200)
+		iq->plot_count += 1;
+		if(iq->plot_count==200)
 		{
 #ifdef DEBUG
 			if(use_gnuplot)
@@ -255,7 +264,7 @@ static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 				fflush(gnuplotPipe);
 			}
 #endif
-			if(correct_iq)
+			if(iq->correct_iq)
 			{
 				int u;
 				uint32_t i;
@@ -269,34 +278,34 @@ static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 					if(u<0) u = -u;
 					sum_q += u;	//Betrag der Q-Abtastwerte wird addiert
 				}
-				iq_ratio = (sum_i * 100) / sum_q;
-				if(iq_ratio != old_iq_ratio)
+				iq->iq_ratio = (sum_i * 100) / sum_q;
+				if(iq->iq_ratio != iq->old_iq_ratio)
 				{
-					printf("I/Q = %3d%%  \r", iq_ratio);
-					old_iq_ratio = iq_ratio;
+					printf("I/Q = %3d%%  \r", iq->iq_ratio);
+					iq->old_iq_ratio = iq->iq_ratio;
 				}
 			}
-			plot_count = 0;
+			iq->plot_count = 0;
 		}
-		if(iq_ratio > 100)
+		if(iq->iq_ratio > 100)
 		{
 			int u;
 			uint32_t i;
 			for(i=0; i<len/2; i++)
 			{
 				u = (buf[2*i]*2)-255;
-				u = (100 * u) / iq_ratio;
+				u = (100 * u) / iq->iq_ratio;
 				rpt->data[2*i] = (u + 255)/2;
 			}
 		}
-		else if(iq_ratio < 100)
+		else if(iq->iq_ratio < 100)
 		{
 			int u;
 			uint32_t i;
 			for(i=0; i<len/2; i++)
 			{
 				u = (buf[2*i+1]*2)-255;
-				u = (iq_ratio * u) / 100;
+				u = (iq->iq_ratio * u) / 100;
 				rpt->data[2*i+1] = (u + 255)/2;
 			}
 		}
@@ -384,9 +393,10 @@ static void *tcp_worker(void *arg)
 					index += bytessent;
 				}
 				if(bytessent == SOCKET_ERROR || do_exit) {
-						printf("worker socket bye\n");
+					printf("worker socket bye\n");
+					if (!do_exit)
 						sighandler(0);
-						pthread_exit(NULL);
+					pthread_exit(NULL);
 				}
 			}
 			prev = curelem;
@@ -397,9 +407,6 @@ static void *tcp_worker(void *arg)
 	}
 	return NULL;
 }
-
-extern void print_demod_register(rtlsdr_dev_t *dev, uint8_t page);
-extern void print_usb_register(rtlsdr_dev_t *dev, uint16_t adr);
 
 static int set_gain_by_index(rtlsdr_dev_t *_dev, unsigned int index)
 {
@@ -432,6 +439,7 @@ struct command{
 #ifdef _WIN32
 #pragma pack(pop)
 #endif
+
 static void *command_worker(void *arg)
 {
 	int left, received = 0;
@@ -455,7 +463,8 @@ static void *command_worker(void *arg)
 			}
 			if(received == SOCKET_ERROR || do_exit) {
 				printf("comm recv bye\n");
-				sighandler(0);
+				if (!do_exit)
+					sighandler(0);
 				pthread_exit(NULL);
 			}
 		}
@@ -551,157 +560,61 @@ static void *command_worker(void *arg)
 }
 
 #ifdef DEBUG
-struct ir_thread_data
-{
-	rtlsdr_dev_t *dev;
-	int ir_table;
-};
-
 static void *ir_thread_fn(void *arg)
 {
-	int r = 0;
-	int i;
-	uint8_t buf[128];
-	unsigned int wait_usec = 80000;
-	struct ir_thread_data *data = (struct ir_thread_data *)arg;
-	rtlsdr_dev_t *dev = data->dev;
+	char keybuf[80];
+	int agc = 0;
+	int len;
 
 	while (!do_exit) {
-		usleep(wait_usec);
-
-		r = rtlsdr_ir_query(dev, buf, sizeof(buf));
-		if (r < 0) {
-			fprintf(stderr, "rtlsdr_ir_query failed: %d\n", r);
-		}
-		if(r == 70) //NEC code
-		{
-			uint32_t code = 0;
-			int leading = 0;
-			for (i = 0; i < r; i++)
-			{
-				int pulse = buf[i] >> 7;
-				int duration = (buf[i] & 0x7f) * 50;
-				if(i == 0) //leading pulse burst
-				{
-					if (pulse == 1)
-						leading += duration;
-					else
-						break;
-				}
-				if(i == 1) //leading pulse burst
-				{
-					if (pulse == 1)
-						leading += duration;
-					else
-						break;
-					if ((leading < 8000) || (leading > 10000))
-						break;
-				}
-				if(i == 2) //space
-				{
-					if ((pulse == 1) || (duration < 4000) || (duration > 5000))
-						break;
-				}
-				if ((i > 2) && ((i & 1) == 1)) //pulse burst
-				{
-					if ((pulse == 0) || (duration < 300) || (duration > 1000))
-						break;
-				}
-				if ((i > 3) && ((i & 1) == 0)) //space
-				{
-					if ((pulse == 1) || (duration < 300) || (duration > 3000))
-						break;
-					if(duration < 1000)
-						code = code >> 1;
-					else
-						code = (code >> 1) | 0x80000000;
-				}
-			}
-			printf("NEC code 0x%0x\n",code);
-			switch ((code >> 16) & 0xff) {
-				case 0x12://0
-					print_demod_register(dev, 0);
+		usleep(100000);
+	    if(scanf("%s", keybuf) < 1)
+			return NULL;
+	    len = strlen(keybuf);
+	    if(len == 1)
+	    	switch (keybuf[0])
+	    	{
+				case '0':
+				case '1':
+				case '2':
+				case '3':
+				case '4':
+					print_demod_register(dev, keybuf[0]-'0');
 					break;
-				case 0x09://1
-					print_demod_register(dev, 1);
-					break;
-				case 0x1d://2
-					print_demod_register(dev, 2);
-					break;
-				case 0x1f://3
-					print_demod_register(dev, 3);
-					break;
-				case 0x0d://4
-					print_demod_register(dev, 4);
-					break;
-				case 0x19://5
+				case '5':
 					print_usb_register(dev, 0x2000);
 					break;
-				case 0x1b://6
+				case '6':
 					print_usb_register(dev, 0x2100);
 					break;
-				case 0x11://7
+				case '7':
 					print_usb_register(dev, 0x3000);
 					break;
-				case 0x15://8
+				case '8':
 					print_usb_register(dev, 0xfc00);
 					break;
-				case 0x17://9
+				case '9':
 					print_usb_register(dev, 0xfd00);
 					break;
+				case 'a':
+					if(agc) agc = 0;
+					else agc = 1;
+					rtlsdr_set_agc_mode(dev, agc);
+					printf("set agc mode %u\n", agc);
+					break;
 			}
-
-
-		}
-		else if(r == 6) //Repeat code
+		else if((len == 6) && (keybuf[0] == 'w'))
 		{
-			int leading = 0;
-			for (i = 0; i < r; i++)
+			int val, page, adr;
+			if (sscanf(keybuf+1,"%x",&val) == 1)
 			{
-				int pulse = buf[i] >> 7;
-				int duration = (buf[i] & 0x7f) * 50;
-				if(i == 0) //leading pulse burst
-				{
-					if (pulse == 1)
-						leading += duration;
-					else
-						break;
-				}
-				if(i == 1) //leading pulse burst
-				{
-					if (pulse == 1)
-						leading += duration;
-					else
-						break;
-					if ((leading < 8000) || (leading > 10000))
-						break;
-				}
-				if(i == 2) //space
-				{
-					if ((pulse == 1) || (duration < 1500) || (duration > 3000))
-						break;
-				}
-				if (i == 3) //pulse burst
-				{
-					if ((pulse == 0) || (duration < 300) || (duration > 1000))
-						break;
-				}
+				page = (val >> 16) & 0xf;
+				adr = (val >> 8) & 0xff;
+				val = val & 0xff;
+				printf("Write Page=%d, Adress=%x, Value=%x\n", page, adr, val);
+				rtlsdr_demod_write_reg(dev, page, adr, val, 1);
 			}
-			printf("NEC Repeat code\n");
 		}
-		/*else if(r>0)
-		{
-			int j;
-			printf("length=%d\n",r);
-	 		for (i = 0; i < r; i++)
-	 		{
-				int pulse = buf[i] >> 7;
-				int duration = buf[i] & 0x7f;
-				for (j = 0; j < duration; ++j)
-					printf("%d", pulse);
-			}
-			if (r != 0) printf("\n");
-		}*/
 	}
 	return NULL;
 }
@@ -718,13 +631,13 @@ int main(int argc, char **argv)
 	int report_i2c = 1;
 	int do_exit_thrd_ctrl = 0;
 	int cal_imr = 1;
-
 	uint32_t frequency = 100000000, samp_rate = 2048000;
 	enum rtlsdr_ds_mode ds_mode = RTLSDR_DS_IQ;
 	uint32_t ds_temp, ds_threshold = 0;
 	struct sockaddr_in local, remote;
 	uint32_t buf_num = 0;
 	int sideband = 0;
+	int offset_tuning = 0;
 	/* buf_len:
 	 * must be multiple of 512 - else it will be overwritten
 	 * in rtlsdr_read_async() in librtlsdr.c with DEFAULT_BUF_LENGTH (= 16*32 *512 = 512 *512)
@@ -742,6 +655,7 @@ int main(int argc, char **argv)
 	void *status;
 	struct timeval tv = {1,0};
 	struct linger ling = {1,0};
+	struct iq_state iq = {0, 0, 100, 100};
 	SOCKET listensocket;
 	socklen_t rlen;
 	fd_set readfds;
@@ -765,9 +679,9 @@ int main(int argc, char **argv)
 		   "Version 0.94 for QIRX, %s\n\n", __DATE__);
 
 #ifdef DEBUG
-	while ((opt = getopt(argc, argv, "a:b:cd:f:g:l:n:O:p:us:vr:w:D:GITP:")) != -1) {
+	while ((opt = getopt(argc, argv, "a:b:cd:f:g:l:n:op:us:vr:w:D:GITP:")) != -1) {
 #else
-	while ((opt = getopt(argc, argv, "a:b:cd:f:g:l:n:O:p:us:vr:w:D:TP:")) != -1) {
+	while ((opt = getopt(argc, argv, "a:b:cd:f:g:l:n:op:us:vr:w:D:TP:")) != -1) {
 #endif
 		switch (opt) {
 		case 'a':
@@ -777,7 +691,7 @@ int main(int argc, char **argv)
 			buf_num = atoi(optarg);
 			break;
 		case 'c':
-			correct_iq = 1;
+			iq.correct_iq = 1;
 			break;
 		case 'd':
 			dev_index = verbose_device_search(optarg);
@@ -794,6 +708,9 @@ int main(int argc, char **argv)
 			break;
 		case 'n':
 			llbuf_num = atoi(optarg);
+			break;
+		case 'o':
+			offset_tuning = 1;
 			break;
 		case 'p':
 			port = atoi(optarg);
@@ -910,7 +827,11 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Set to upper sideband\n");
 	}
 	verbose_set_bandwidth(dev, bandwidth);
-
+	if(offset_tuning)
+	{
+		printf("set offset tuning\n");
+		rtlsdr_set_offset_tuning(dev, 1);
+	}
 	rtlsdr_set_bias_tee(dev, enable_biastee);
 	if (enable_biastee)
 		fprintf(stderr, "activated bias-T on GPIO PIN 0\n");
@@ -929,10 +850,7 @@ int main(int argc, char **argv)
 	pthread_cond_init(&exit_cond, NULL);
 #ifdef DEBUG
 	if(port_ir)
-	{
-		struct ir_thread_data data = {.dev = dev, .ir_table = port_ir};
-		pthread_create(&thread_ir, NULL, &ir_thread_fn, (void *)(&data));
-	}
+		pthread_create(&thread_ir, NULL, &ir_thread_fn, NULL);
 #endif
 	if ( port_resp == 1 )
 		port_resp = port + 1;
@@ -1023,7 +941,7 @@ int main(int argc, char **argv)
 		r = pthread_create(&command_thread, &attr, command_worker, NULL);
 		pthread_attr_destroy(&attr);
 
-		r = rtlsdr_read_async(dev, rtlsdr_callback, NULL, buf_num, buf_len);
+		r = rtlsdr_read_async(dev, rtlsdr_callback, (void *)&iq, buf_num, buf_len);
 
 		pthread_join(tcp_worker_thread, &status);
 		pthread_join(command_thread, &status);
