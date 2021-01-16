@@ -230,7 +230,6 @@ int r820t_set_freq(void *dev, uint32_t freq) {
 }
 
 static int rtlsdr_set_fir(rtlsdr_dev_t *dev, int table);
-void print_demod_register(rtlsdr_dev_t *dev, uint8_t page);
 
 int r820t_set_bw(void *dev, int bw, uint32_t *applied_bw, int apply) {
 	int r;
@@ -569,16 +568,16 @@ static int rtlsdr_write_reg(rtlsdr_dev_t *dev, uint16_t index, uint16_t addr, ui
 	return r;
 }
 
-static int rtlsdr_write_reg_mask(rtlsdr_dev_t *dev, uint16_t block, uint16_t reg, uint8_t val,
+static int rtlsdr_write_reg_mask(rtlsdr_dev_t *dev, uint16_t index, uint16_t addr, uint8_t val,
 		uint8_t mask)
 {
-	uint8_t tmp = rtlsdr_read_reg(dev, block, reg);
+	uint8_t tmp = rtlsdr_read_reg(dev, index, addr);
 
 	val = (tmp & ~mask) | (val & mask);
 	if(tmp == val)
 		return 0;
 	else
-		return rtlsdr_write_reg(dev, block, reg, (uint16_t)val, 1);
+		return rtlsdr_write_reg(dev, index, addr, (uint16_t)val, 1);
 }
 
 
@@ -604,7 +603,7 @@ int rtlsdr_i2c_read_fn(void *dev, uint8_t addr, uint8_t reg, uint8_t *buf, int l
 	return rtlsdr_read_array((rtlsdr_dev_t *)dev, TUNB, reg << 8 | addr, buf, len);
 }
 
-static uint16_t rtlsdr_demod_read_reg(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, uint8_t len)
+uint16_t rtlsdr_demod_read_reg(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, uint8_t len)
 {
 	unsigned char data[2];
 
@@ -619,17 +618,7 @@ static uint16_t rtlsdr_demod_read_reg(rtlsdr_dev_t *dev, uint16_t page, uint16_t
 		return (data[0] << 8) | data[1];
 }
 
-static int rtlsdr_demod_read_regs(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, unsigned char *data, uint8_t len)
-{
-	int r = libusb_control_transfer(dev->devh, CTRL_IN, 0, (addr << 8) | RTL2832_DEMOD_ADDR,
-									page, data, len, CTRL_TIMEOUT);
-	if (r != len)
-		fprintf(stderr, "%s failed with %d\n", __FUNCTION__, r);
-
-	return r;
-}
-
-static int rtlsdr_demod_write_reg(rtlsdr_dev_t *dev, uint8_t page, uint16_t addr, uint16_t val, uint8_t len)
+int rtlsdr_demod_write_reg(rtlsdr_dev_t *dev, uint8_t page, uint16_t addr, uint16_t val, uint8_t len)
 {
 	int r;
 	unsigned char data[2];
@@ -822,9 +811,6 @@ static void rtlsdr_init_baseband(rtlsdr_dev_t *dev)
 	rtlsdr_demod_write_reg(dev, 1, 0x93, 0xf0, 1);
 	rtlsdr_demod_write_reg(dev, 1, 0x94, 0x0f, 1);
 
-	/* disable AGC (en_dagc, bit 0) (this seems to have no effect) */
-	rtlsdr_demod_write_reg(dev, 1, 0x11, 0x00, 1);
-
 	/* disable PID filter (enable_PID = 0) */
 	rtlsdr_demod_write_reg(dev, 0, 0x61, 0x60, 1);
 
@@ -869,21 +855,33 @@ static int rtlsdr_deinit_baseband(rtlsdr_dev_t *dev)
 }
 
 #ifdef DEBUG
+static int rtlsdr_demod_read_regs(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, unsigned char *data, uint8_t len)
+{
+	int r = libusb_control_transfer(dev->devh, CTRL_IN, 0, (addr << 8) | RTL2832_DEMOD_ADDR,
+									page, data, len, CTRL_TIMEOUT);
+	if (r != len)
+		fprintf(stderr, "%s failed with %d\n", __FUNCTION__, r);
+
+	return r;
+}
+
 void print_demod_register(rtlsdr_dev_t *dev, uint8_t page)
 {
 	unsigned char data[16];
 	int i, j, k;
+	int reg = 0;
 
 	printf("Page %d\n", page);
-	printf("   0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
+	printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
 	for(i=0; i<16; i++)
 	{
-		printf("%01x ", i);
+		printf("%02x: ", reg);
 		for(j=0; j<4; j++)
 		{
-			rtlsdr_demod_read_regs(dev, page, i*16+j*4, data, 4);
+			rtlsdr_demod_read_regs(dev, page, reg+j, data, 4);
 			for(k=0; k<4; k++)
 				printf("%02x ", data[k]);
+			reg += 4;
 		}
 		printf("\n");
 	}
@@ -917,14 +915,14 @@ void print_usb_register(rtlsdr_dev_t *dev, uint16_t addr)
 	int i, j, index;
     int len = sizeof(data);
 
-	printf("      0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
+	printf("       0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
 	if(addr < 0x2000) index = ROMB;
 	else if(addr < 0x3000) index = USBB;
 	else if(addr < 0xfc00) index = SYSB;
 	else index = IRB;
 	for(i=0; i<16; i++)
 	{
-		printf("%04x ", addr);
+		printf("%04x: ", addr);
         libusb_control_transfer(dev->devh, CTRL_IN, 0, addr, index, data, len, CTRL_TIMEOUT);
 		for(j=0; j<16; j++)
 			printf("%02x ", data[j]);
@@ -2178,7 +2176,7 @@ static void LIBUSB_CALL _libusb_callback(struct libusb_transfer *xfer)
 			dev->xfer_errors++;
 
 		if (dev->xfer_errors >= dev->xfer_buf_num ||
-				LIBUSB_TRANSFER_NO_DEVICE == xfer->status) {
+			LIBUSB_TRANSFER_NO_DEVICE == xfer->status) {
 #endif
 			dev->dev_lost = 1;
 			rtlsdr_cancel_async(dev);
