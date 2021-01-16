@@ -522,6 +522,12 @@ RTLSDR_API int rtlsdr_reset_demod(rtlsdr_dev_t *dev);
  */
 RTLSDR_API int rtlsdr_set_dithering(rtlsdr_dev_t *dev, int dither);
 
+#ifdef DEBUG
+RTLSDR_API void print_demod_register(rtlsdr_dev_t *dev, uint8_t page);
+RTLSDR_API void print_usb_register(rtlsdr_dev_t *dev, uint16_t adr);
+RTLSDR_API int  rtlsdr_demod_write_reg(rtlsdr_dev_t *dev, uint8_t page, uint16_t addr, uint16_t val, uint8_t len);
+#endif
+
 #ifdef __cplusplus
 }
 #endif
