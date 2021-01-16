@@ -44,6 +44,7 @@
 
 extern int16_t interpolate(int16_t freq, int size, const int16_t *freqs, const int16_t *gains);
 extern int rtlsdr_get_agc_val(void *dev, int *slave_demod);
+extern uint16_t rtlsdr_demod_read_reg(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, uint8_t len);
 
 
 /*
@@ -1033,17 +1034,16 @@ int r82xx_get_i2c_register(struct r82xx_priv *priv, unsigned char* data, int *le
 	int rc;
 
 	*len = NUM_REGS;
-#ifdef DEBUG
-	*len += REG_SHADOW_START+3;
-#endif
 	// The lower 16 I2C registers can be read with the normal read fct, the upper ones are read from the cache
 	rc = r82xx_read(priv, data, REG_SHADOW_START);
 	if (rc < 0)
 		return rc;
 	memcpy(data+REG_SHADOW_START, priv->regs+REG_SHADOW_START, NUM_REGS-REG_SHADOW_START);
 #ifdef DEBUG
+	*len += REG_SHADOW_START+4;
 	memcpy(data+NUM_REGS, priv->regs, REG_SHADOW_START);
 	data[NUM_REGS+REG_SHADOW_START] = cmd;
+	data[NUM_REGS+REG_SHADOW_START+3] = rtlsdr_demod_read_reg(priv->rtl_dev, 3, 0x05, 1);
 #endif
 	*strength = r82xx_get_signal_strength(priv, data);
 	return 0;
