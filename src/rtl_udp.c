@@ -437,7 +437,7 @@ void *ir_thread_fn(void *arg)
 
 		    len = ret;
 
-		    ret = send(irsocket, buf, len, 0);
+		    ret = send(irsocket, (char*)buf, len, 0);
 		    if (ret != len){
 			printf("incomplete write to ir client: %d != %d\n", ret,len);
 			break;
