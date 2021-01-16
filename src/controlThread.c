@@ -49,9 +49,6 @@
 
 #include "tuner_r82xx.h"
 
-extern int	rtlsdr_demod_read_regs(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, unsigned char *data, uint8_t len);
-extern void print_demod_register(rtlsdr_dev_t *dev, uint16_t page);
-
 #ifdef _WIN32
 #pragma comment(lib, "ws2_32.lib")
 
@@ -66,7 +63,6 @@ typedef int socklen_t;
 
 #define MAX_I2C_REGISTERS  256
 #define TX_BUF_LEN (5+MAX_I2C_REGISTERS) //1 command, 2 tuner_gain, 2 len
-
 
 ctrl_thread_data_t ctrl_thread_data;
 
@@ -83,7 +79,6 @@ void *ctrl_thread_fn(void *arg)
 	struct sockaddr_in local, remote;
 	socklen_t rlen;
 
-	int error = 0;
 	int len, result, tuner_gain;
 	fd_set connfds;
 	fd_set writefds;
@@ -114,7 +109,7 @@ void *ctrl_thread_fn(void *arg)
 	setsockopt(listensocket, SOL_SOCKET, SO_LINGER, (char *)&ling, sizeof(ling));
 	retval = bind(listensocket, (struct sockaddr *)&local, sizeof(local));
 	if (retval == SOCKET_ERROR)
-		error = 1;
+		goto close;
 #ifdef _WIN32
 	ioctlsocket(listensocket, FIONBIO, &blockmode);
 #else
@@ -126,7 +121,7 @@ void *ctrl_thread_fn(void *arg)
 		//printf("listening on Control port %d...\n", port);
 		retval = listen(listensocket, 1);
 		if (retval == SOCKET_ERROR)
-			error = 1;
+			goto close;
 		while (1) {
 			FD_ZERO(&connfds);
 			FD_SET(listensocket, &connfds);
@@ -188,7 +183,6 @@ void *ctrl_thread_fn(void *arg)
 			bytessent = 0;
 			bytesleft = len;
 			index = 0;
-
 			while (bytesleft > 0) {
 				FD_ZERO(&writefds);
 				FD_SET(controlSocket, &writefds);
@@ -219,3 +213,4 @@ close:
 	}
 	return 0;
 }
+
