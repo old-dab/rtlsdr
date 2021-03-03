@@ -425,18 +425,23 @@ static int fc2580_set_filter(void *dev, unsigned char filter_bw)
 		result |= fc2580_write(dev, 0x37, (unsigned char)(4151*freq_xtal/1000000) );
 		result |= fc2580_write(dev, 0x39, 0x00);
 		break;
-	case 6: //6000 kHz
+	case 2: //2000 kHz
+		result |= fc2580_write(dev, 0x36, 0x1C);
+		result |= fc2580_write(dev, 0x37, (unsigned char)(3000*freq_xtal/1000000) );
+		result |= fc2580_write(dev, 0x39, 0x00);
+		break;
+	case 5: //5400 kHz
 		result |= fc2580_write(dev, 0x36, 0x18);
 		result |= fc2580_write(dev, 0x37, (unsigned char)(4400*freq_xtal/1000000) );
 		result |= fc2580_write(dev, 0x39, 0x00);
 		break;
-	case 7: //7000 kHz
+	case 6: //6300 kHz
 		result |= fc2580_write(dev, 0x36, 0x18);
 		result |= fc2580_write(dev, 0x37, (unsigned char)(3910*freq_xtal/1000000) );
 		result |= fc2580_write(dev, 0x39, 0x80);
 		break;
 	default:
-	case 8: //8000 kHz
+	case 7: //7200 kHz
 		result |= fc2580_write(dev, 0x36, 0x18);
 		result |= fc2580_write(dev, 0x37, (unsigned char)(3300*freq_xtal/1000000) );
 		result |= fc2580_write(dev, 0x39, 0x80);
@@ -463,14 +468,16 @@ static int fc2580_set_filter(void *dev, unsigned char filter_bw)
 int fc2580_set_bw(void *dev, int bw, uint32_t *applied_bw, int apply)
 {
 
-	if (bw < 2000000)
-		*applied_bw = 1500000;
-	else if (bw < 6500000)
-		*applied_bw = 6000000;
-	else if (bw < 7500000)
-		*applied_bw = 7000000;
+	if (bw < 1800000)
+		*applied_bw = 1530000;
+	else if (bw < 3000000)
+		*applied_bw = 2100000;
+	else if (bw < 6000000)
+		*applied_bw = 5400000;
+	else if (bw < 7000000)
+		*applied_bw = 6300000;
 	else
-		*applied_bw = 8000000;
+		*applied_bw = 7200000;
 	if(!apply)
 		return 0;
 	return fc2580_set_filter(dev, *applied_bw/1000000);
