@@ -625,7 +625,6 @@ int main(int argc, char **argv)
 	int r, opt, i;
 	char* addr = "127.0.0.1";
 	int port = 1234;
-	pthread_t thread_ir;
 	pthread_t thread_ctrl; //-cs- for periodically reading the register values
 	int port_resp = 1;
 	int report_i2c = 1;
@@ -645,7 +644,7 @@ int main(int argc, char **argv)
 	 * -> 512*512 -> 1048 ms @ 250 kS  or  81.92 ms @ 3.2 MS (internal default)
 	 * ->  32*512 ->   65 ms @ 250 kS  or   5.12 ms @ 3.2 MS (new default)
 	 */
-	uint32_t buf_len = 47 * 512;
+	uint32_t buf_len = 64 * 512;
 	int dev_index = 0;
 	int dev_given = 0;
 	int gain = 0;
@@ -665,6 +664,7 @@ int main(int argc, char **argv)
 	uint32_t bandwidth = 0;
 	int enable_biastee = 0;
 #ifdef DEBUG
+	pthread_t thread_ir;
 	int port_ir = 0;
 #endif
 
@@ -676,7 +676,7 @@ int main(int argc, char **argv)
 #endif
 
 	printf("rtl_tcp, an I/Q spectrum server for RTL2832 based DVB-T receivers\n"
-		   "Version 0.94 for QIRX, %s\n\n", __DATE__);
+		   "Version 0.95 for QIRX, %s\n\n", __DATE__);
 
 #ifdef DEBUG
 	while ((opt = getopt(argc, argv, "a:b:cd:f:g:l:n:op:us:vr:w:D:GITP:")) != -1) {
@@ -964,7 +964,8 @@ int main(int argc, char **argv)
 	}
 
 out:
-	rtlsdr_close(dev);
+	if(dev)
+		rtlsdr_close(dev);
 	closesocket(listensocket);
 	if ( port_resp ) {
 		do_exit_thrd_ctrl = 1;
@@ -974,6 +975,10 @@ out:
 	closesocket(s);
 #ifdef _WIN32
 	WSACleanup();
+#endif
+#ifdef DEBUG
+	if(use_gnuplot)
+		pclose(gnuplotPipe);
 #endif
 	printf("bye!\n");
 	return r >= 0 ? r : -r;
