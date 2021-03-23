@@ -17,31 +17,16 @@
 # the Free Software Foundation, Inc., 51 Franklin Street,
 # Boston, MA 02110-1301, USA.
 
-MACRO(RTLSDR_APPEND_SRCS)
-    LIST(APPEND rtlsdr_srcs ${ARGV})
-ENDMACRO(RTLSDR_APPEND_SRCS)
-
-RTLSDR_APPEND_SRCS(
-    librtlsdr.c
-    tuner_e4k.c
-    tuner_fc001x.c
-    tuner_fc2580.c
+########################################################################
+# Setup library
+########################################################################
+LIST(APPEND rtlsdr_srcs
+    librtlsdr.c 
+    tuner_e4k.c 
+    tuner_fc001x.c 
+    tuner_fc2580.c 
     tuner_r82xx.c
 )
-
-########################################################################
-# Set up Windows DLL resource files
-########################################################################
-IF(MSVC)
-    include(${PROJECT_SOURCE_DIR}/cmake/Modules/Version.cmake)
-
-    configure_file(
-        ${CMAKE_CURRENT_SOURCE_DIR}/rtlsdr.rc.in
-        ${CMAKE_CURRENT_BINARY_DIR}/rtlsdr.rc
-    @ONLY)
-
-    RTLSDR_APPEND_SRCS(${CMAKE_CURRENT_BINARY_DIR}/rtlsdr.rc)
-ENDIF(MSVC)
 
 ########################################################################
 # Setup shared library variant
