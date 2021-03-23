@@ -1652,6 +1652,9 @@ uint32_t rtlsdr_get_device_count(void)
 	struct libusb_device_descriptor dd;
 	ssize_t cnt;
 
+	//const struct libusb_version* version = libusb_get_version();
+	//printf("Using libusb v%d.%d.%d.%d\n", version->major, version->minor, version->micro, version->nano);
+
 	if(libusb_init(&ctx) < 0)
 		return 0;
 
@@ -1716,7 +1719,6 @@ int rtlsdr_get_device_usb_strings(uint32_t index, char *manufact,
 	libusb_context *ctx;
 	libusb_device **list;
 	struct libusb_device_descriptor dd;
-	rtlsdr_dongle_t *device = NULL;
 	rtlsdr_dev_t devt;
 	uint32_t device_count = 0;
 	ssize_t cnt;
@@ -1727,15 +1729,16 @@ int rtlsdr_get_device_usb_strings(uint32_t index, char *manufact,
 
 	cnt = libusb_get_device_list(ctx, &list);
 
-	for (i = 0; i < cnt; i++) {
+	for (i = 0; i < cnt; i++)
+	{
 		libusb_get_device_descriptor(list[i], &dd);
-
-		device = find_known_device(dd.idVendor, dd.idProduct);
-
-		if (device) {
-			if (index == device_count) {
+		if (find_known_device(dd.idVendor, dd.idProduct))
+		{
+			if (index == device_count)
+			{
 				r = libusb_open(list[i], &devt.devh);
-				if (!r) {
+				if (!r)
+				{
 					r = rtlsdr_get_usb_strings(&devt, manufact, product, serial);
 					libusb_close(devt.devh);
 				}
@@ -1748,7 +1751,6 @@ int rtlsdr_get_device_usb_strings(uint32_t index, char *manufact,
 	libusb_free_device_list(list, 1);
 
 	libusb_exit(ctx);
-
 	return r;
 }
 
@@ -1798,6 +1800,8 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 		return -1;
 	}
 
+	libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL, 1);
+
 	pthread_mutexattr_init(&dev->cs_mutex_attr);
 	pthread_mutexattr_settype(&dev->cs_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
 	pthread_mutex_init(&dev->cs_mutex, &dev->cs_mutex_attr);
@@ -1834,7 +1838,6 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 			"by installing the udev rules file rtl-sdr.rules\n");
 		goto err;
 	}
-
 	libusb_free_device_list(list, 1);
 
 	if (libusb_kernel_driver_active(dev->devh, 0) == 1) {
