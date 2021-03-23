@@ -265,9 +265,10 @@ void gen_default_conf(rtlsdr_config_t *conf, int config)
 
 int main(int argc, char **argv)
 {
-	int i, r, opt;
+	uint32_t i;
+	int r, opt;
 	uint32_t dev_index = 0;
-	int device_count;
+	uint32_t device_count;
 	char *filename = NULL;
 	FILE *file = NULL;
 	char *manuf_str = NULL;
@@ -357,6 +358,12 @@ int main(int argc, char **argv)
 		fprintf(stderr, "  %d:  %s\n", i, rtlsdr_get_device_name(i));
 	fprintf(stderr, "\n");
 
+	if(dev_index >= device_count)
+	{
+		fprintf(stderr, "No matching devices found.\n");
+		exit(1);
+	}
+
 	fprintf(stderr, "Using device %d: %s\n",
 		dev_index,
 		rtlsdr_get_device_name(dev_index));
@@ -377,9 +384,6 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Failed to read EEPROM, err %i.\n", r);
 		goto exit;
 	}
-
-	if (r < 0)
-		return -1;
 
 	fprintf(stderr, "Current configuration:\n");
 	parse_eeprom_to_conf(&conf, buf);
