@@ -1,4 +1,3 @@
-
 /*
  * rtl-sdr, turns your Realtek RTL2832 based DVB dongle into a SDR receiver
  * Copyright (C) 2009 Antti Palosaari <crope@iki.fi>
@@ -46,7 +45,6 @@
 #endif
 
 #include <math.h>
-#include <libusb.h>
 
 #include "rtl-sdr.h"
 #include "convenience/convenience.h"
