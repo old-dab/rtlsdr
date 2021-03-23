@@ -19,7 +19,7 @@
 ########################################################################
 # Project setup
 ########################################################################
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.0)
 project(rtlsdr C)
 
 # CMP0075 Include file check macros honor CMAKE_REQUIRED_LIBRARIES
@@ -42,7 +42,7 @@ endif()
 
 # Set the version information here
 set(VERSION_INFO_MAJOR_VERSION 0) # increment major on api compatibility changes
-set(VERSION_INFO_MINOR_VERSION 7) # increment minor on feature-level changes
+set(VERSION_INFO_MINOR_VERSION 95) # increment minor on feature-level changes
 set(VERSION_INFO_PATCH_VERSION git) # increment patch for bug fixes and docs
 include(Version) # setup version info
 
@@ -68,7 +68,7 @@ if(MINGW)
     # Fix printf %zu
     ADD_DEFINITIONS(-D__USE_MINGW_ANSI_STDIO) 
 endif()
-# ADD_DEFINITIONS(-DDEBUG) 
+#ADD_DEFINITIONS(-DDEBUG) 
 
 ########################################################################
 # Find build dependencies
@@ -141,7 +141,6 @@ endif (ENABLE_ZEROCOPY)
 ########################################################################
 # Add subdirectories
 ########################################################################
-add_subdirectory(include)
 add_subdirectory(src)
 
 ########################################################################
