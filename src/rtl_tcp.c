@@ -52,6 +52,7 @@
 #include "rtl_tcp.h"
 #include "convenience/convenience.h"
 #include "controlThread.h"
+#include "version.h"
 
 #ifdef _WIN32
 #pragma comment(lib, "ws2_32.lib")
@@ -676,7 +677,8 @@ int main(int argc, char **argv)
 #endif
 
 	printf("rtl_tcp, an I/Q spectrum server for RTL2832 based DVB-T receivers\n"
-		   "Version 0.95 for QIRX, %s\n\n", __DATE__);
+		   "Version %d.%d.%d.%d for QIRX, %s\n\n",
+		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
 
 #ifdef DEBUG
 	while ((opt = getopt(argc, argv, "a:b:cd:f:g:l:n:op:us:vr:w:D:GITP:")) != -1) {
