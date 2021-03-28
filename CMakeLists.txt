@@ -34,41 +34,35 @@ if(NOT CMAKE_BUILD_TYPE)
 endif(NOT CMAKE_BUILD_TYPE)
 set(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE STRING "")
 
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/Modules)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules)
 
 if(NOT LIB_INSTALL_DIR)
    set(LIB_INSTALL_DIR lib)
 endif()
 
-# Set the version information here
-set(VERSION_INFO_MAJOR_VERSION 0) # increment major on api compatibility changes
-set(VERSION_INFO_MINOR_VERSION 95) # increment minor on feature-level changes
-set(VERSION_INFO_PATCH_VERSION git) # increment patch for bug fixes and docs
-include(Version) # setup version info
-
 ########################################################################
 # Compiler specific setup
 ########################################################################
-
 if(CMAKE_COMPILER_IS_GNUCC)
-    ADD_DEFINITIONS(-Wall)
-    ADD_DEFINITIONS(-Wextra)
-#    ADD_DEFINITIONS(-Wno-unused-parameter)
-#    ADD_DEFINITIONS(-Wno-unused)
-    ADD_DEFINITIONS(-Wsign-compare)
-    ADD_DEFINITIONS(-Wdeclaration-after-statement)
+    add_compile_options(-Wall)
+    add_compile_options(-Wextra)
+    add_compile_options(-Wno-unused-parameter)
+    add_compile_options(-Wno-unused)
+    add_compile_options(-Wsign-compare)
+    add_compile_options(-Wdeclaration-after-statement)
     #http://gcc.gnu.org/wiki/Visibility
-    ADD_DEFINITIONS(-fvisibility=hidden)
+    add_compile_options(-fvisibility=hidden)
 elseif(MSVC14)
     #pthread-w32 issue, timespec is now part of time.h
     ADD_DEFINITIONS(-D_TIMESPEC_DEFINED)
 endif()
-
 if(MINGW)
     # Fix printf %zu
     ADD_DEFINITIONS(-D__USE_MINGW_ANSI_STDIO) 
 endif()
 #ADD_DEFINITIONS(-DDEBUG) 
+
+
 
 ########################################################################
 # Find build dependencies
@@ -182,5 +176,4 @@ INSTALL(
 ########################################################################
 # Print Summary
 ########################################################################
-MESSAGE(STATUS "Building for version: ${VERSION} / ${LIBVER}")
 MESSAGE(STATUS "Using install prefix: ${CMAKE_INSTALL_PREFIX}")
