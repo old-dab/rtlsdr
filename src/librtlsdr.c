@@ -380,7 +380,7 @@ static rtlsdr_dongle_t known_devices[] = {
 };
 
 #define DEFAULT_BUF_NUMBER	15
-#define DEFAULT_BUF_LENGTH	(16 * 32 * 512)
+#define DEFAULT_BUF_LENGTH	(64 * 512)
 /* buf_len:
  * must be multiple of 512 - else it will be overwritten
  * in rtlsdr_read_async() in librtlsdr.c with DEFAULT_BUF_LENGTH (= 16*32 *512 = 512 *512)
@@ -555,6 +555,9 @@ static int rtlsdr_write_reg(rtlsdr_dev_t *dev, uint16_t index, uint16_t addr, ui
 	int r;
 	unsigned char data[2];
 
+	if (!dev)
+		return -1;
+
 	if (len == 1)
 		data[0] = val & 0xff;
 	else {
@@ -622,6 +625,9 @@ int rtlsdr_demod_write_reg(rtlsdr_dev_t *dev, uint8_t page, uint16_t addr, uint1
 	int r;
 	unsigned char data[2];
 
+	if (!dev)
+		return -1;
+
 	addr = (addr << 8) | RTL2832_DEMOD_ADDR;
 
 	if (len == 1)
@@ -653,11 +659,15 @@ static int rtlsdr_demod_write_reg_mask(rtlsdr_dev_t *dev, uint8_t page, uint16_t
 
 void rtlsdr_set_gpio_bit(rtlsdr_dev_t *dev, uint8_t gpio, int val)
 {
+	if (!dev)
+		return;
 	rtlsdr_write_reg_mask(dev, SYSB, GPO, val << gpio, 1 << gpio);
 }
 
 static void rtlsdr_set_gpio_output(rtlsdr_dev_t *dev, uint8_t gpio)
 {
+	if (!dev)
+		return;
 	gpio = 1 << gpio;
 	rtlsdr_write_reg_mask(dev, SYSB, GPD, ~gpio, gpio);
 	rtlsdr_write_reg_mask(dev, SYSB, GPOE, gpio, gpio);
@@ -665,6 +675,8 @@ static void rtlsdr_set_gpio_output(rtlsdr_dev_t *dev, uint8_t gpio)
 
 static void rtlsdr_set_i2c_repeater(rtlsdr_dev_t *dev, int on)
 {
+	if (!dev)
+		return;
 	if (on)
 		pthread_mutex_lock(&dev->cs_mutex);
 
@@ -681,6 +693,9 @@ static int Set2(void *dev)
 
 	int i;
 	int rst = 0;
+
+	if (!dev)
+		return -1;
 	for(i=0; i<6; i++)
 	{
 		rst |= rtlsdr_demod_write_reg(dev, 0, addr, FM_coe2[i], 1);
@@ -695,6 +710,9 @@ static int rtlsdr_set_fir(rtlsdr_dev_t *dev, int table)
 	uint8_t fir[20];
 	const int *fir_table;
 	int i;
+
+	if (!dev)
+		return -1;
 
 	if((dev->fir == table) || (table > 3))
 		return 0;
@@ -743,6 +761,8 @@ static int rtlsdr_set_fir(rtlsdr_dev_t *dev, int table)
 int rtlsdr_get_agc_val(void *dev, int *slave_demod)
 {
 	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
+	if (!dev)
+		return -1;
 
 	*slave_demod = devt->slave_demod;
 	return rtlsdr_demod_read_reg(dev, 3, 0x59, 2);
@@ -777,6 +797,9 @@ int rtlsdr_reset_demod(rtlsdr_dev_t *dev)
 static void rtlsdr_init_baseband(rtlsdr_dev_t *dev)
 {
 	unsigned int i;
+
+	if (!dev)
+		return;
 
 	/* initialize USB */
 	rtlsdr_write_reg(dev, USBB, USB_SYSCTL, 0x09, 1);
@@ -856,6 +879,8 @@ static int rtlsdr_deinit_baseband(rtlsdr_dev_t *dev)
 #ifdef DEBUG
 static int rtlsdr_demod_read_regs(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, unsigned char *data, uint8_t len)
 {
+	if (!dev)
+		return -1;
 	int r = rtlsdr_read_array(dev, page, (addr << 8) | RTL2832_DEMOD_ADDR, data, len);
 	if (r != len)
 		fprintf(stderr, "%s failed with %d\n", __FUNCTION__, r);
@@ -869,6 +894,8 @@ void print_demod_register(rtlsdr_dev_t *dev, uint8_t page)
 	int i, j, k;
 	int reg = 0;
 
+	if (!dev)
+		return;
 	printf("Page %d\n", page);
 	printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
 	for(i=0; i<16; i++)
@@ -893,6 +920,8 @@ void print_rom(rtlsdr_dev_t *dev)
     int addr = 0;
     int len = sizeof(data);
 
+	if (!dev)
+		return;
     printf("write file\n");
     pFile = fopen("rtl2832.bin","wb");
     if (pFile!=NULL)
@@ -913,6 +942,8 @@ void print_usb_register(rtlsdr_dev_t *dev, uint16_t addr)
 	int i, j, index;
     int len = sizeof(data);
 
+	if (!dev)
+		return;
 	printf("       0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
 	if(addr < 0x2000) index = ROMB;
 	else if(addr < 0x3000) index = USBB;
@@ -958,6 +989,8 @@ static int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, uint32_t freq)
 
 static inline int rtlsdr_set_spectrum_inversion(rtlsdr_dev_t *dev, int sideband)
 {
+	if (!dev)
+		return -1;
 	return rtlsdr_demod_write_reg_mask(dev, 1, 0x15, sideband ? 0x00 : 0x01, 0x01);
 }
 
@@ -1214,7 +1247,7 @@ int rtlsdr_set_and_get_tuner_bandwidth(rtlsdr_dev_t *dev, uint32_t bw, uint32_t 
 {
 	int r = 0;
 
-		*applied_bw = 0;		/* unknown */
+	*applied_bw = 0;		/* unknown */
 
 	if (!dev || !dev->tuner)
 		return -1;
@@ -1261,6 +1294,9 @@ int rtlsdr_set_and_get_tuner_bandwidth(rtlsdr_dev_t *dev, uint32_t bw, uint32_t 
 int rtlsdr_set_tuner_bandwidth(rtlsdr_dev_t *dev, uint32_t bw )
 {
 	uint32_t applied_bw = 0;
+
+	if (!dev)
+		return -1;
 	return rtlsdr_set_and_get_tuner_bandwidth(dev, bw, &applied_bw, 1 /* =apply_bw */ );
 }
 
@@ -1374,6 +1410,9 @@ int rtlsdr_get_tuner_i2c_register(rtlsdr_dev_t *dev, unsigned char *data, int *l
 int rtlsdr_set_dithering(rtlsdr_dev_t *dev, int dither)
 {
 	int r = 0;
+
+	if (!dev)
+		return -1;
 	if ((dev->tuner_type == RTLSDR_TUNER_R820T) ||
 		(dev->tuner_type == RTLSDR_TUNER_R828D)) {
 		rtlsdr_set_i2c_repeater(dev, 1);
@@ -2082,14 +2121,16 @@ demod_found:
 	*out_dev = dev;
 
 	return 0;
+
 err:
 	if (dev) {
 		if (dev->devh)
+		{
+            libusb_release_interface(dev->devh, 0);
 			libusb_close(dev->devh);
-
+		}
 		if (dev->ctx)
 			libusb_exit(dev->ctx);
-
 		free(dev);
 	}
 	return r;
@@ -2361,9 +2402,8 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 				if (LIBUSB_TRANSFER_CANCELLED !=
 						dev->xfer[i]->status) {
 					r = libusb_cancel_transfer(dev->xfer[i]);
-					/* handle events after canceling
-					 * to allow transfer status to
-					 * propagate */
+					/* handle events after canceling to
+					 * allow transfer status to propagate */
 					libusb_handle_events_timeout_completed(dev->ctx,
 												 &zerotv, NULL);
 					if (r < 0)
@@ -2457,6 +2497,9 @@ int rtlsdr_ir_query(rtlsdr_dev_t *d, uint8_t *buf, size_t buf_len)
 		{IRB, IR_RX_BUF_CTRL,	0x80},
 		{IRB, IR_RX_CTRL,		0x80},
 	};
+
+	if (!d)
+		return -1;
 
 	/* init remote controller */
 	if (!d->rc_active) {
@@ -2566,6 +2609,8 @@ int rtlsdr_set_bias_tee_gpio(rtlsdr_dev_t *dev, int gpio, int on)
 
 int rtlsdr_set_bias_tee(rtlsdr_dev_t *dev, int on)
 {
+	if (!dev)
+		return -1;
 	if (dev->slave_demod)
 		return 0;
 	else
