@@ -514,13 +514,20 @@ static const int fc001x_gains[] =
 
 static int fc001x_set_gain(void *dev, int gain, uint8_t if_reg, uint8_t lna_reg)
 {
-	int ret;
 	unsigned int i;
+	uint8_t gain_mode;
 
+	int ret = fc001x_readreg(dev, 0x0d, &gain_mode);
+	if (ret < 0)
+		return ret;
+	if((gain_mode & 8) == 0)
+		return 0; //don't set gain in AGC mode
+	if(if_reg == 0x13)
+		ret = fc001x_writereg(dev, 0x12, 0); //set FC0013 mixer gain to 0
 	for (i = 0; i < GAIN_CNT; i++)
 		if ((fc001x_gains[i] >= gain) || (i+1 == GAIN_CNT))
 			break;
-	ret = fc001x_writereg(dev, if_reg, if_gains[i]);
+	ret |= fc001x_writereg(dev, if_reg, if_gains[i]);
 	ret |= fc001x_write_reg_mask(dev, lna_reg, lna_gains[i], 0x1f);
 	//print_registers(dev);
 	return ret;
@@ -533,9 +540,7 @@ int fc0012_set_gain(void *dev, int gain)
 
 int fc0013_set_gain(void *dev, int gain)
 {
-	int ret = fc001x_writereg(dev, 0x12, 0);
-	ret |= fc001x_set_gain(dev, gain, 0x13, 0x14);
-	return ret;
+	return fc001x_set_gain(dev, gain, 0x13, 0x14);
 }
 
 int fc001x_set_bw(void *dev, int bw, uint32_t *applied_bw, int apply)
@@ -633,7 +638,7 @@ static int fc001x_get_i2c_register(void *dev, unsigned char* data, int *len, int
 	else
 		mixer = 0;
 	*tuner_gain = fc001x_get_signal_strength(data[if_reg], data[lna_reg], mixer);
-	if((gain_mode & 8) == 0) //AGC mode
+	if((gain_mode & 8) == 0) //Set LAN gain in AGC mode
 	{
 		int lna = data[lna_reg] & 0x1f;
 		if(lna == 0x10)
