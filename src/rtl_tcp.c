@@ -1,3 +1,4 @@
+
 /*
  * rtl-sdr, turns your Realtek RTL2832 based DVB dongle into a SDR receiver
  * Copyright (C) 2012 by Steve Markgraf <steve@steve-m.de>
@@ -92,10 +93,10 @@ typedef struct { /* structure size must be multiple of 2 bytes */
 
 struct iq_state
 {
-	int plot_count;
 	int correct_iq;
-	int iq_ratio;
-	int old_iq_ratio;
+	float levelI;
+	float levelQ;
+	float ratio;
 };
 
 static rtlsdr_dev_t *dev = NULL;
@@ -107,8 +108,10 @@ static struct llist *ll_buffers = 0;
 static int llbuf_num = 500;
 
 static volatile int do_exit = 0;
+static volatile int ctrlC_exit = 0;
 
 #ifdef DEBUG
+static	int plot_count = 0;
 static FILE *gnuplotPipe; /* Pipe for communicating with gnuplot  */
 static va_list vargs;  /* Holds information about variable arguments */
 static int use_gnuplot = 0; /* Use gnuplot or not (optional) */
@@ -155,7 +158,7 @@ void usage(void)
 	printf("\n"
 		"Usage:\t[-a listen address]\n"
 		"\t[-b number of buffers (default: 15, set by library)]\n"
-		"\t[-c correct I/Q-Ratio for E4000\n"
+		"\t[-c correct I/Q-Ratio\n"
 		"\t[-d device index or serial (default: 0)]\n"
 		"\t[-f frequency to tune to [Hz]]\n"
 		"\t[-g gain in dB (default: 0 for auto)]\n"
@@ -183,13 +186,16 @@ void usage(void)
 BOOL WINAPI sighandler(int signum)
 {
 	if (CTRL_C_EVENT == signum) {
-		fprintf(stderr, "Signal caught, exiting!\n");
+		fprintf(stderr, "CTRL-C caught, exiting!\n");
+		do_exit = 1;
+		ctrlC_exit = 1;
+		rtlsdr_cancel_async(dev);
+		return TRUE;
+	}
+	else if (CTRL_CLOSE_EVENT == signum) {
+		fprintf(stderr, "SIGQUIT caught, exiting!\n");
 		do_exit = 1;
 		rtlsdr_cancel_async(dev);
-#ifdef DEBUG
-		if(use_gnuplot)
-			pclose(gnuplotPipe);
-#endif
 		return TRUE;
 	}
 	return FALSE;
@@ -197,15 +203,35 @@ BOOL WINAPI sighandler(int signum)
 #else
 static void sighandler(int signum)
 {
-	fprintf(stderr, "Signal caught, exiting!\n");
+	fprintf(stderr, "Signal (%d) caught, ask for exit!\n", signum);
 	rtlsdr_cancel_async(dev);
-#ifdef DEBUG
-		if(use_gnuplot)
-			pclose(gnuplotPipe);
-#endif
 	do_exit = 1;
 }
 #endif
+
+static void iqBalance(uint8_t *buf, int len, struct iq_state *iq)
+{
+	int pos;
+	float iq_ratio;
+
+    for (pos = 0; pos < len; pos+=2)
+    {
+        iq->levelI += iq->ratio * (abs((float)buf[pos]-127.5) - iq->levelI);
+        iq->levelQ += iq->ratio * (abs((float)buf[pos+1]-127.5) - iq->levelQ);
+	}
+	iq_ratio = iq->levelI / iq->levelQ;
+	//printf("I/Q = %f%%\n ", iq_ratio);
+	if(iq_ratio > 1.01)
+	{
+	    for (pos = 0; pos < len; pos+=2)
+			buf[pos] = ((float)buf[pos]-127.5) / iq_ratio + 127.5;
+	}
+	else if(iq_ratio < 0.99)
+	{
+	    for (pos = 1; pos < len; pos+=2)
+			buf[pos] = ((float)buf[pos]-127.5) * iq_ratio + 127.5;
+	}
+}
 
 static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 {
@@ -217,13 +243,15 @@ static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 	if(!do_exit) {
 		struct llist *rpt = (struct llist*)malloc(sizeof(struct llist));
 		rpt->data = (char*)malloc(len);
+		if(iq->correct_iq)
+			iqBalance(buf, len, iq);
 		memcpy(rpt->data, buf, len);
 		rpt->len = len;
 		rpt->next = NULL;
-		iq->plot_count += 1;
-		if(iq->plot_count==200)
-		{
 #ifdef DEBUG
+		plot_count += 1;
+		if(plot_count==200)
+		{
 			if(use_gnuplot)
 			{
 				float dbi, dbq;
@@ -264,52 +292,9 @@ static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 				gnuplot_exec("e\n");
 				fflush(gnuplotPipe);
 			}
+			plot_count = 0;
+		}
 #endif
-			if(iq->correct_iq)
-			{
-				int u;
-				uint32_t i;
-				uint32_t sum_i = 0, sum_q = 0;
-				for(i=0; i<len/2; i++)
-				{
-					u = (buf[2*i]*2)-255;
-					if(u<0) u = -u;
-					sum_i += u; //Betrag der I-Abtastwerte wird addiert
-					u = (buf[2*i+1]*2)-255;
-					if(u<0) u = -u;
-					sum_q += u;	//Betrag der Q-Abtastwerte wird addiert
-				}
-				iq->iq_ratio = (sum_i * 100) / sum_q;
-				if(iq->iq_ratio != iq->old_iq_ratio)
-				{
-					printf("I/Q = %3d%%  \r", iq->iq_ratio);
-					iq->old_iq_ratio = iq->iq_ratio;
-				}
-			}
-			iq->plot_count = 0;
-		}
-		if(iq->iq_ratio > 100)
-		{
-			int u;
-			uint32_t i;
-			for(i=0; i<len/2; i++)
-			{
-				u = (buf[2*i]*2)-255;
-				u = (100 * u) / iq->iq_ratio;
-				rpt->data[2*i] = (u + 255)/2;
-			}
-		}
-		else if(iq->iq_ratio < 100)
-		{
-			int u;
-			uint32_t i;
-			for(i=0; i<len/2; i++)
-			{
-				u = (buf[2*i+1]*2)-255;
-				u = (iq->iq_ratio * u) / 100;
-				rpt->data[2*i+1] = (u + 255)/2;
-			}
-		}
 
 		pthread_mutex_lock(&ll_mutex);
 		if (ll_buffers == NULL) {
@@ -357,6 +342,7 @@ static void *tcp_worker(void *arg)
 	struct timeval tp;
 	fd_set writefds;
 	int r = 0;
+	(void) arg;
 
 	while(1) {
 		if(do_exit)
@@ -370,7 +356,7 @@ static void *tcp_worker(void *arg)
 		if(r == ETIMEDOUT) {
 			pthread_mutex_unlock(&ll_mutex);
 			printf("worker cond timeout\n");
-			sighandler(0);
+			sighandler(CTRL_CLOSE_EVENT);
 			pthread_exit(NULL);
 		}
 
@@ -394,9 +380,12 @@ static void *tcp_worker(void *arg)
 					index += bytessent;
 				}
 				if(bytessent == SOCKET_ERROR || do_exit) {
-					printf("worker socket bye\n");
-					if (!do_exit)
-						sighandler(0);
+#ifdef _WIN32
+					printf("worker socket bye (%d), do_exit:%d\n", WSAGetLastError(), do_exit);
+#else
+					printf("worker socket bye, do_exit:%d\n", do_exit);
+#endif
+					sighandler(CTRL_CLOSE_EVENT);
 					pthread_exit(NULL);
 				}
 			}
@@ -449,6 +438,7 @@ static void *command_worker(void *arg)
 	struct timeval tv= {1, 0};
 	int r = 0;
 	uint32_t param;
+	(void) arg;
 
 	while(1) {
 		left=sizeof(cmd);
@@ -463,9 +453,12 @@ static void *command_worker(void *arg)
 				left -= received;
 			}
 			if(received == SOCKET_ERROR || do_exit) {
-				printf("comm recv bye\n");
-				if (!do_exit)
-					sighandler(0);
+#ifdef _WIN32
+				printf("comm recv bye (%d), do_exit:%d\n", WSAGetLastError(), do_exit);
+#else
+				printf("comm recv bye, do_exit:%d\n", do_exit);
+#endif
+				sighandler(CTRL_CLOSE_EVENT);
 				pthread_exit(NULL);
 			}
 		}
@@ -655,7 +648,7 @@ int main(int argc, char **argv)
 	void *status;
 	struct timeval tv = {1,0};
 	struct linger ling = {1,0};
-	struct iq_state iq = {0, 0, 100, 100};
+	struct iq_state iq = {0, 0.0f, 0.0f, 1E-05f};
 	SOCKET listensocket;
 	socklen_t rlen;
 	fd_set readfds;
@@ -795,6 +788,8 @@ int main(int argc, char **argv)
 	SetConsoleCtrlHandler( (PHANDLER_ROUTINE) sighandler, TRUE );
 #endif
 
+	if(iq.correct_iq == 1)
+		printf("Correct I/Q balance\n");
 	/* Set the tuner error */
 	verbose_ppm_set(dev, ppm_error);
 
@@ -961,7 +956,7 @@ int main(int argc, char **argv)
 			free(prev);
 		}
 
-		do_exit = 0;
+		if (!ctrlC_exit) do_exit = 0;
 		global_numq = 0;
 	}
 
