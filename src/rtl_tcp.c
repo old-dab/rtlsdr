@@ -215,7 +215,7 @@ static void iqBalance(uint8_t *buf, int len, struct iq_state *iq)
         iq->levelQ += iq->ratio * (fabsf((float)buf[pos+1]-DC_OFFSET) - iq->levelQ);
 	}
 	iq_ratio = iq->levelI / iq->levelQ;
-	printf("I = %f, Q = %f, I/Q = %f%%\n", iq->levelI, iq->levelQ, iq_ratio);
+	//printf("I = %f, Q = %f, I/Q = %f%%\n", iq->levelI, iq->levelQ, iq_ratio);
 	if(iq_ratio > 1.01)
 	{
 	    for (pos = 0; pos < len; pos+=2)
