@@ -34,11 +34,13 @@ if(NOT CMAKE_BUILD_TYPE)
 endif(NOT CMAKE_BUILD_TYPE)
 set(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE STRING "")
 
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules)
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/Modules)
 
 if(NOT LIB_INSTALL_DIR)
    set(LIB_INSTALL_DIR lib)
 endif()
+
+OPTION(LINK_RTLTOOLS_AGAINST_STATIC_LIB "Link rtl-tools statically against librtlsdr" OFF)
 
 ########################################################################
 # Compiler specific setup
@@ -46,8 +48,6 @@ endif()
 if(CMAKE_COMPILER_IS_GNUCC)
     add_compile_options(-Wall)
     add_compile_options(-Wextra)
-    add_compile_options(-Wno-unused-parameter)
-    add_compile_options(-Wno-unused)
     add_compile_options(-Wsign-compare)
     add_compile_options(-Wdeclaration-after-statement)
     #http://gcc.gnu.org/wiki/Visibility
@@ -56,27 +56,29 @@ elseif(MSVC14)
     #pthread-w32 issue, timespec is now part of time.h
     ADD_DEFINITIONS(-D_TIMESPEC_DEFINED)
 endif()
+
 if(MINGW)
     # Fix printf %zu
     ADD_DEFINITIONS(-D__USE_MINGW_ANSI_STDIO) 
 endif()
 #ADD_DEFINITIONS(-DDEBUG) 
 
-
-
 ########################################################################
 # Find build dependencies
 ########################################################################
+if(NOT WIN32)
 find_package(PkgConfig)
 find_package(LibUSB)
-if(WIN32 AND NOT MINGW)
-    set(THREADS_USE_PTHREADS_WIN32 true)
-endif()
-find_package(Threads)
-
 if(NOT LIBUSB_FOUND)
     message(FATAL_ERROR "LibUSB 1.0 required to compile rtl-sdr")
 endif()
+endif()
+
+if(WIN32 AND NOT MINGW)
+    set(THREADS_USE_PTHREADS_WIN32 true)
+endif()
+find_package(Threads REQUIRED)
+
 if(NOT THREADS_FOUND)
     message(FATAL_ERROR "pthreads(-win32) required to compile rtl-sdr")
 endif()
@@ -86,7 +88,9 @@ endif()
 ########################################################################
 include_directories(
     ${PROJECT_SOURCE_DIR}/include
+if(NOT WIN32)
     ${LIBUSB_INCLUDE_DIR}
+endif()
     ${THREADS_PTHREADS_INCLUDE_DIR}
 )
 
