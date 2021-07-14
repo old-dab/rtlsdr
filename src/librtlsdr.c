@@ -17,38 +17,37 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef _WIN32
+#include <windows.h>
+#include <WinUsb.h>
+#include <setupapi.h>
+#include <cfgmgr32.h>
+#else
 #include <errno.h>
 #include <signal.h>
 #include <string.h>
-#include <stdio.h>
 #include <stdlib.h>
-#ifndef _WIN32
 #include <unistd.h>
-#define min(a, b) (((a) < (b)) ? (a) : (b))
-#endif
-
 #include <libusb.h>
+#endif
+#include <stdio.h>
 #include <pthread.h>
 
-/*
- * All libusb callback functions should be marked with the LIBUSB_CALL macro
- * to ensure that they are compiled with the same calling convention as libusb.
- *
- * If the macro isn't available in older libusb versions, we simply define it.
- */
-#ifndef LIBUSB_CALL
-#define LIBUSB_CALL
+#ifdef _WIN32
+#define LIBUSB_REQUEST_TYPE_VENDOR (0x02 << 5)
+#define LIBUSB_ENDPOINT_IN 0x80
+#define LIBUSB_ENDPOINT_OUT 0x00
+#else
+#define CTRL_TIMEOUT	300
+#define BULK_TIMEOUT	0
 #endif
 
-
-/* libusb < 1.0.9 doesn't have libusb_handle_events_timeout_completed */
-#ifndef HAVE_LIBUSB_HANDLE_EVENTS_TIMEOUT_COMPLETED
-#define libusb_handle_events_timeout_completed(ctx, tv, c) \
-	libusb_handle_events_timeout(ctx, tv)
-#endif
+#define CTRL_IN			(LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN)
+#define CTRL_OUT		(LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT)
 
 /* two raised to the power of n */
 #define TWO_POW(n)	((double)(1ULL<<(n)))
+#define EP_RX		0x81
 
 #include "rtl-sdr.h"
 #include "tuner_e4k.h"
@@ -108,17 +107,25 @@ static const int fir_bw[] = {2400, 1200, 1000, 300};
 static int cal_imr = 0;
 
 struct rtlsdr_dev {
+#ifdef _WIN32
+	WINUSB_INTERFACE_HANDLE devh;
+	HANDLE deviceHandle;
+	OVERLAPPED **overlapped;
+#else
 	libusb_context *ctx;
 	struct libusb_device_handle *devh;
-	uint32_t xfer_buf_num;
-	uint32_t xfer_buf_len;
 	struct libusb_transfer **xfer;
-	unsigned char **xfer_buf;
 	rtlsdr_read_async_cb_t cb;
 	void *cb_ctx;
+	int use_zerocopy;
+	int driver_active;
+	unsigned int xfer_errors;
+#endif
+	unsigned char **xfer_buf;
+	uint32_t xfer_buf_num;
+	uint32_t xfer_buf_len;
 	enum rtlsdr_async_status async_status;
 	int async_cancel;
-	int use_zerocopy;
 	/* rtl demod context */
 	uint32_t rate; /* Hz */
 	uint32_t rtl_xtal; /* Hz */
@@ -139,15 +146,11 @@ struct rtlsdr_dev {
 	struct r82xx_config r82xx_c;
 	struct r82xx_priv r82xx_p;
 	enum rtlsdr_demod slave_demod;
-
 	/* -cs- Concurrent lock for the periodic reading of I2C registers */
 	pthread_mutex_t cs_mutex;
 	pthread_mutexattr_t cs_mutex_attr;
-
 	/* status */
 	int dev_lost;
-	int driver_active;
-	unsigned int xfer_errors;
 	int rc_active;
 	int verbose;
 };
@@ -325,8 +328,8 @@ static rtlsdr_tuner_iface_t tuners[] = {
 };
 
 typedef struct rtlsdr_dongle {
-	uint16_t vid;
-	uint16_t pid;
+	const uint16_t vid;
+	const uint16_t pid;
 	const char *name;
 } rtlsdr_dongle_t;
 
@@ -389,15 +392,9 @@ static rtlsdr_dongle_t known_devices[] = {
  * ->  32*512 ->   65 ms @ 250 kS  or   5.12 ms @ 3.2 MS (new default)
  */
 
-
 #define DEF_RTL_XTAL_FREQ	28800000
 #define MIN_RTL_XTAL_FREQ	(DEF_RTL_XTAL_FREQ - 1000)
 #define MAX_RTL_XTAL_FREQ	(DEF_RTL_XTAL_FREQ + 1000)
-
-#define CTRL_IN			(LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN)
-#define CTRL_OUT		(LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT)
-#define CTRL_TIMEOUT	300
-#define BULK_TIMEOUT	0
 
 #define EEPROM_ADDR			0xa0
 #define RTL2832_DEMOD_ADDR	0x20
@@ -529,6 +526,201 @@ enum blocks {
 	IICB 	= 0x0600
 };
 
+static rtlsdr_dongle_t *find_known_device(uint16_t vid, uint16_t pid)
+{
+	unsigned int i;
+	rtlsdr_dongle_t *device = NULL;
+
+	for (i = 0; i < sizeof(known_devices)/sizeof(rtlsdr_dongle_t); i++ ) {
+		if (known_devices[i].vid == vid && known_devices[i].pid == pid) {
+			device = &known_devices[i];
+			break;
+		}
+	}
+
+	return device;
+}
+
+#ifdef _WIN32
+struct found_device
+{
+	uint16_t vid;
+	uint16_t pid;
+	char serial[80];
+	char mfg[80];
+	char DevicePath[256];
+};
+
+static int List_Devices(int index, struct found_device *found)
+{
+	SP_DEVINFO_DATA DeviceInfoData;
+	char DeviceID[256];
+	char DeviceID2[256];
+	char devInterfaceGuidArray[256];
+	char Mfg[80];
+	char Service[32]; //Driver service name.
+	HKEY hkeyDevInfo;
+	DWORD length;
+	int vid, pid;
+	char *Serial;
+	int DeviceIndex = 0;
+	int count = 0;
+
+	HDEVINFO DeviceInfoSet = SetupDiGetClassDevs(NULL, "USB", NULL,
+                                    DIGCF_ALLCLASSES | DIGCF_PRESENT);
+	if(DeviceInfoSet == INVALID_HANDLE_VALUE)
+	{
+		fprintf(stderr,"SetupDiGetClassDevs failed\n");
+		return 0;
+	}
+
+	ZeroMemory(&DeviceInfoData, sizeof(SP_DEVINFO_DATA));
+	DeviceInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+
+	while (SetupDiEnumDeviceInfo(DeviceInfoSet, DeviceIndex++, &DeviceInfoData))
+	{
+		// Get the Device Instance ID
+		if (!SetupDiGetDeviceInstanceIdA(DeviceInfoSet, &DeviceInfoData, DeviceID, sizeof(DeviceID), NULL))
+		{
+			fprintf(stderr,"SetupDiGetDeviceInstanceId failed. ErrorCode:%08lXh\n", GetLastError());
+			continue;
+		}
+
+		// We are only interested in *usb device* instances; not root hubs (or anything else)
+		if (_strnicmp(DeviceID, "USB\\VID_", 8) != 0)
+			continue;
+		if (_strnicmp(DeviceID+22, "MI_01", 5) == 0)
+			continue;
+		sscanf(DeviceID+8, "%04X", &vid);
+		sscanf(DeviceID+17, "%04X", &pid);
+		if(find_known_device(vid, pid) == NULL)
+			continue;
+		if (_strnicmp(DeviceID+22, "MI_", 3) == 0)
+		{
+			// This is a composite device.  The 'SerialNumber' will come from the parent device.
+			DWORD hParentInst;
+			if (CM_Get_Parent(&hParentInst, DeviceInfoData.DevInst, 0) == ERROR_SUCCESS)
+				CM_Get_Device_ID(hParentInst, DeviceID2, sizeof(DeviceID2) - 1, 0);
+			Serial = strrchr(DeviceID2, '\\') + 1;
+		}
+		else
+			Serial = strrchr(DeviceID, '\\') + 1;
+
+		// Get SPDRP_SERVICE
+		if (!SetupDiGetDeviceRegistryPropertyA(DeviceInfoSet, &DeviceInfoData, SPDRP_SERVICE, NULL, (PBYTE)Service, sizeof(Service)-1, NULL))
+		{
+			//fprintf(stderr,"SetupDiGetDeviceRegistryProperty SPDRP_SERVICE Failed. ErrorCode:%08lXh\n", GetLastError());
+			continue;
+		}
+		if (_strnicmp(Service, "WinUSB", 6) != 0)
+			continue;
+
+		//if(index < 0)
+		//	printf("%s %s\n", DeviceID, Service);
+		if (!SetupDiGetDeviceRegistryPropertyA(DeviceInfoSet, &DeviceInfoData, SPDRP_MFG, NULL, (PBYTE)Mfg, sizeof(Mfg)-1, NULL))
+		{
+			fprintf(stderr,"SetupDiGetDeviceRegistryProperty SPDRP_MFG Failed. ErrorCode:%08lXh\n", GetLastError());
+			continue;
+		}
+		hkeyDevInfo = SetupDiOpenDevRegKey(DeviceInfoSet, &DeviceInfoData, DICS_FLAG_GLOBAL, 0, DIREG_DEV, KEY_QUERY_VALUE);
+		if (hkeyDevInfo == INVALID_HANDLE_VALUE)
+		{
+			fprintf(stderr,"SetupDiOpenDevRegKey Failed. ErrorCode:%08lXh\n", GetLastError());
+			continue;
+		}
+		length = sizeof(devInterfaceGuidArray);
+		memset(devInterfaceGuidArray,0,sizeof(devInterfaceGuidArray));
+		if(RegQueryValueExA(hkeyDevInfo, "DeviceInterfaceGUIDs", NULL, NULL, (LPBYTE)devInterfaceGuidArray, &length) != ERROR_SUCCESS)
+		{
+			fprintf(stderr,"RegQueryValueExA Failed. ErrorCode:%08lXh\n", GetLastError());
+			RegCloseKey(hkeyDevInfo);
+			continue;
+		}
+		RegCloseKey(hkeyDevInfo);
+		//if(index < 0)
+		//	printf("%d: %04X:%04X %s %s \n", count, vid, pid, Mfg, &devInterfaceGuidArray[0]);
+		if(count == index)
+		{
+			char DevicePath[256];
+			char *backslash;
+			found->vid = vid;
+			found->pid = pid;
+			if(strchr(Serial, '&'))
+				found->serial[0] = 0;
+			else
+				strcpy(found->serial, Serial);
+			strcpy(found->mfg, Mfg);
+			strcpy(DevicePath, "\\\\?\\");
+			strcat(DevicePath, DeviceID);
+			strcat(DevicePath, "#");
+			strcat(DevicePath, &devInterfaceGuidArray[0]);
+			DevicePath[7] = '#';
+			backslash = strchr(DevicePath+8, '\\');
+			if(backslash)
+				*backslash = '#';
+			strcpy(found->DevicePath, DevicePath);
+			//printf("DevicePath = %s\n", DevicePath);
+			break;
+		}
+		count++;
+	}
+	if (DeviceInfoSet)
+	    SetupDiDestroyDeviceInfoList(DeviceInfoSet);
+	return count;
+}
+
+static BOOL Open_Device(rtlsdr_dev_t *dev, char *DevicePath)
+{
+	BOOL bResult;
+
+	dev->deviceHandle = CreateFile(DevicePath,
+						GENERIC_WRITE | GENERIC_READ,
+						FILE_SHARE_WRITE | FILE_SHARE_READ, NULL,
+						OPEN_EXISTING,
+						FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL);
+	if(dev->deviceHandle == INVALID_HANDLE_VALUE)
+	{
+		fprintf(stderr,"CreateFile failed\n");
+		return FALSE;
+	}
+	bResult = WinUsb_Initialize(dev->deviceHandle, &dev->devh);
+	if(!bResult)
+	{
+		fprintf(stderr,"WinUsb_Initialize failed\n");
+		CloseHandle(dev->deviceHandle);
+	}
+	return bResult;
+}
+
+static int usb_control_transfer(rtlsdr_dev_t *dev, uint8_t type,
+	uint16_t wValue, uint16_t wIndex, unsigned char *data, uint16_t wLength)
+{
+	BOOL bResult;
+	ULONG len;
+	WINUSB_SETUP_PACKET setupPacket;
+	// Setup packets are always 8 bytes (64 bits)
+	*((__int64*)&setupPacket) = 0;
+
+	// Fill the setup packet.
+	setupPacket.RequestType	= type;
+	setupPacket.Value		= wValue;
+	setupPacket.Index		= wIndex;
+	setupPacket.Length		= wLength;
+	bResult = WinUsb_ControlTransfer(dev->devh, setupPacket,
+									 data, wLength, &len, NULL);
+	if((len != wLength) || (bResult == FALSE))
+		return -1;
+	return (int)len;
+}
+#endif
+
+#ifdef _WIN32
+#define rtlsdr_read_array(dev, index, addr, array, len) \
+	usb_control_transfer(dev, CTRL_IN, addr, index, array, len)
+
+#define rtlsdr_write_array(dev, index, addr, array, len) \
+	usb_control_transfer(dev, CTRL_OUT, addr, index | 0x10, array, len)
+#else
 static inline int rtlsdr_read_array(rtlsdr_dev_t *dev, uint16_t index, uint16_t addr, uint8_t *array, uint16_t len)
 {
 	return libusb_control_transfer(dev->devh, CTRL_IN, 0, addr, index, array, len, CTRL_TIMEOUT);
@@ -538,6 +730,8 @@ static inline int rtlsdr_write_array(rtlsdr_dev_t *dev, uint16_t index, uint16_t
 {
 	return libusb_control_transfer(dev->devh, CTRL_OUT, 0, addr, index | 0x10, array, len, CTRL_TIMEOUT);
 }
+#endif
+
 
 static uint8_t rtlsdr_read_reg(rtlsdr_dev_t *dev, uint16_t index, uint16_t addr)
 {
@@ -554,9 +748,6 @@ static int rtlsdr_write_reg(rtlsdr_dev_t *dev, uint16_t index, uint16_t addr, ui
 {
 	int r;
 	unsigned char data[2];
-
-	if (!dev)
-		return -1;
 
 	if (len == 1)
 		data[0] = val & 0xff;
@@ -582,7 +773,6 @@ static int rtlsdr_write_reg_mask(rtlsdr_dev_t *dev, uint16_t index, uint16_t add
 	else
 		return rtlsdr_write_reg(dev, index, addr, (uint16_t)val, 1);
 }
-
 
 static uint8_t check_tuner(rtlsdr_dev_t *dev, uint8_t i2c_addr, uint8_t reg)
 {
@@ -625,9 +815,6 @@ int rtlsdr_demod_write_reg(rtlsdr_dev_t *dev, uint8_t page, uint16_t addr, uint1
 	int r;
 	unsigned char data[2];
 
-	if (!dev)
-		return -1;
-
 	addr = (addr << 8) | RTL2832_DEMOD_ADDR;
 
 	if (len == 1)
@@ -659,15 +846,11 @@ static int rtlsdr_demod_write_reg_mask(rtlsdr_dev_t *dev, uint8_t page, uint16_t
 
 void rtlsdr_set_gpio_bit(rtlsdr_dev_t *dev, uint8_t gpio, int val)
 {
-	if (!dev)
-		return;
 	rtlsdr_write_reg_mask(dev, SYSB, GPO, val << gpio, 1 << gpio);
 }
 
 static void rtlsdr_set_gpio_output(rtlsdr_dev_t *dev, uint8_t gpio)
 {
-	if (!dev)
-		return;
 	gpio = 1 << gpio;
 	rtlsdr_write_reg_mask(dev, SYSB, GPD, ~gpio, gpio);
 	rtlsdr_write_reg_mask(dev, SYSB, GPOE, gpio, gpio);
@@ -675,8 +858,6 @@ static void rtlsdr_set_gpio_output(rtlsdr_dev_t *dev, uint8_t gpio)
 
 static void rtlsdr_set_i2c_repeater(rtlsdr_dev_t *dev, int on)
 {
-	if (!dev)
-		return;
 	if (on)
 		pthread_mutex_lock(&dev->cs_mutex);
 
@@ -693,9 +874,6 @@ static int Set2(void *dev)
 
 	int i;
 	int rst = 0;
-
-	if (!dev)
-		return -1;
 	for(i=0; i<6; i++)
 	{
 		rst |= rtlsdr_demod_write_reg(dev, 0, addr, FM_coe2[i], 1);
@@ -710,9 +888,6 @@ static int rtlsdr_set_fir(rtlsdr_dev_t *dev, int table)
 	uint8_t fir[20];
 	const int *fir_table;
 	int i;
-
-	if (!dev)
-		return -1;
 
 	if((dev->fir == table) || (table > 3))
 		return 0;
@@ -761,8 +936,6 @@ static int rtlsdr_set_fir(rtlsdr_dev_t *dev, int table)
 int rtlsdr_get_agc_val(void *dev, int *slave_demod)
 {
 	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
-	if (!dev)
-		return -1;
 
 	*slave_demod = devt->slave_demod;
 	return rtlsdr_demod_read_reg(dev, 3, 0x59, 2);
@@ -797,9 +970,6 @@ int rtlsdr_reset_demod(rtlsdr_dev_t *dev)
 static void rtlsdr_init_baseband(rtlsdr_dev_t *dev)
 {
 	unsigned int i;
-
-	if (!dev)
-		return;
 
 	/* initialize USB */
 	rtlsdr_write_reg(dev, USBB, USB_SYSCTL, 0x09, 1);
@@ -877,10 +1047,8 @@ static int rtlsdr_deinit_baseband(rtlsdr_dev_t *dev)
 }
 
 #ifdef DEBUG
-static int rtlsdr_demod_read_regs(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, unsigned char *data, uint8_t len)
+static int rtlsdr_demod_read_regs(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, uint8_t *data, uint8_t len)
 {
-	if (!dev)
-		return -1;
 	int r = rtlsdr_read_array(dev, page, (addr << 8) | RTL2832_DEMOD_ADDR, data, len);
 	if (r != len)
 		fprintf(stderr, "%s failed with %d\n", __FUNCTION__, r);
@@ -894,8 +1062,6 @@ void print_demod_register(rtlsdr_dev_t *dev, uint8_t page)
 	int i, j, k;
 	int reg = 0;
 
-	if (!dev)
-		return;
 	printf("Page %d\n", page);
 	printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
 	for(i=0; i<16; i++)
@@ -920,8 +1086,6 @@ void print_rom(rtlsdr_dev_t *dev)
     int addr = 0;
     int len = sizeof(data);
 
-	if (!dev)
-		return;
     printf("write file\n");
     pFile = fopen("rtl2832.bin","wb");
     if (pFile!=NULL)
@@ -942,8 +1106,6 @@ void print_usb_register(rtlsdr_dev_t *dev, uint16_t addr)
 	int i, j, index;
     int len = sizeof(data);
 
-	if (!dev)
-		return;
 	printf("       0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
 	if(addr < 0x2000) index = ROMB;
 	else if(addr < 0x3000) index = USBB;
@@ -989,8 +1151,6 @@ static int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, uint32_t freq)
 
 static inline int rtlsdr_set_spectrum_inversion(rtlsdr_dev_t *dev, int sideband)
 {
-	if (!dev)
-		return -1;
 	return rtlsdr_demod_write_reg_mask(dev, 1, 0x15, sideband ? 0x00 : 0x01, 0x01);
 }
 
@@ -1055,47 +1215,6 @@ int rtlsdr_get_xtal_freq(rtlsdr_dev_t *dev, uint32_t *rtl_freq, uint32_t *tuner_
 
 	if (tuner_freq)
 		*tuner_freq = (uint32_t) APPLY_PPM_CORR(dev->tun_xtal, dev->corr);
-
-	return 0;
-}
-
-int rtlsdr_get_usb_strings(rtlsdr_dev_t *dev, char *manufact, char *product,
-							char *serial)
-{
-	struct libusb_device_descriptor dd;
-	libusb_device *device = NULL;
-	const int buf_max = 256;
-	int r = 0;
-
-	if (!dev || !dev->devh)
-		return -1;
-
-	device = libusb_get_device(dev->devh);
-
-	r = libusb_get_device_descriptor(device, &dd);
-	if (r < 0)
-		return -1;
-
-	if (manufact) {
-		memset(manufact, 0, buf_max);
-		libusb_get_string_descriptor_ascii(dev->devh, dd.iManufacturer,
-							 (unsigned char *)manufact,
-							 buf_max);
-	}
-
-	if (product) {
-		memset(product, 0, buf_max);
-		libusb_get_string_descriptor_ascii(dev->devh, dd.iProduct,
-							 (unsigned char *)product,
-							 buf_max);
-	}
-
-	if (serial) {
-		memset(serial, 0, buf_max);
-		libusb_get_string_descriptor_ascii(dev->devh, dd.iSerialNumber,
-							 (unsigned char *)serial,
-							 buf_max);
-	}
 
 	return 0;
 }
@@ -1247,7 +1366,7 @@ int rtlsdr_set_and_get_tuner_bandwidth(rtlsdr_dev_t *dev, uint32_t bw, uint32_t 
 {
 	int r = 0;
 
-	*applied_bw = 0;		/* unknown */
+		*applied_bw = 0;		/* unknown */
 
 	if (!dev || !dev->tuner)
 		return -1;
@@ -1294,9 +1413,6 @@ int rtlsdr_set_and_get_tuner_bandwidth(rtlsdr_dev_t *dev, uint32_t bw, uint32_t 
 int rtlsdr_set_tuner_bandwidth(rtlsdr_dev_t *dev, uint32_t bw )
 {
 	uint32_t applied_bw = 0;
-
-	if (!dev)
-		return -1;
 	return rtlsdr_set_and_get_tuner_bandwidth(dev, bw, &applied_bw, 1 /* =apply_bw */ );
 }
 
@@ -1410,9 +1526,6 @@ int rtlsdr_get_tuner_i2c_register(rtlsdr_dev_t *dev, unsigned char *data, int *l
 int rtlsdr_set_dithering(rtlsdr_dev_t *dev, int dither)
 {
 	int r = 0;
-
-	if (!dev)
-		return -1;
 	if ((dev->tuner_type == RTLSDR_TUNER_R820T) ||
 		(dev->tuner_type == RTLSDR_TUNER_R828D)) {
 		rtlsdr_set_i2c_repeater(dev, 1);
@@ -1666,22 +1779,40 @@ int rtlsdr_get_offset_tuning(rtlsdr_dev_t *dev)
 	return (dev->offs_freq) ? 1 : 0;
 }
 
-
-static rtlsdr_dongle_t *find_known_device(uint16_t vid, uint16_t pid)
+#ifdef _WIN32
+uint32_t rtlsdr_get_device_count(void)
 {
-	unsigned int i;
-	rtlsdr_dongle_t *device = NULL;
-
-	for (i = 0; i < sizeof(known_devices)/sizeof(rtlsdr_dongle_t); i++ ) {
-		if (known_devices[i].vid == vid && known_devices[i].pid == pid) {
-			device = &known_devices[i];
-			break;
-		}
-	}
-
-	return device;
+	return List_Devices(-1, NULL);
 }
 
+const char *rtlsdr_get_device_name(uint32_t index)
+{
+	struct found_device found;
+	rtlsdr_dongle_t *device = NULL;
+
+	List_Devices(index, &found);
+	device = find_known_device(found.vid, found.pid);
+	if (device)
+		return device->name;
+	else
+		return "";
+}
+
+int rtlsdr_get_device_usb_strings(uint32_t index, char *manufact,
+					 char *product, char *serial)
+{
+	struct found_device found;
+
+	List_Devices(index, &found);
+	if(manufact)
+		sprintf(manufact, "VID: %04X (%s)", found.vid, found.mfg);
+	if(product)
+		sprintf(product, "PID: %04X", found.pid);
+	if(serial)
+		strcpy(serial, found.serial);
+	return 0;
+}
+#else
 uint32_t rtlsdr_get_device_count(void)
 {
 	int i;
@@ -1750,6 +1881,47 @@ const char *rtlsdr_get_device_name(uint32_t index)
 		return "";
 }
 
+int rtlsdr_get_usb_strings(rtlsdr_dev_t *dev, char *manufact, char *product,
+							char *serial)
+{
+	struct libusb_device_descriptor dd;
+	libusb_device *device = NULL;
+	const int buf_max = 256;
+	int r = 0;
+
+	if (!dev || !dev->devh)
+		return -1;
+
+	device = libusb_get_device(dev->devh);
+
+	r = libusb_get_device_descriptor(device, &dd);
+	if (r < 0)
+		return -1;
+
+	if (manufact) {
+		memset(manufact, 0, buf_max);
+		libusb_get_string_descriptor_ascii(dev->devh, dd.iManufacturer,
+							 (unsigned char *)manufact,
+							 buf_max);
+	}
+
+	if (product) {
+		memset(product, 0, buf_max);
+		libusb_get_string_descriptor_ascii(dev->devh, dd.iProduct,
+							 (unsigned char *)product,
+							 buf_max);
+	}
+
+	if (serial) {
+		memset(serial, 0, buf_max);
+		libusb_get_string_descriptor_ascii(dev->devh, dd.iSerialNumber,
+							 (unsigned char *)serial,
+							 buf_max);
+	}
+
+	return 0;
+}
+
 int rtlsdr_get_device_usb_strings(uint32_t index, char *manufact,
 					 char *product, char *serial)
 {
@@ -1792,40 +1964,23 @@ int rtlsdr_get_device_usb_strings(uint32_t index, char *manufact,
 	libusb_exit(ctx);
 	return r;
 }
-
-int rtlsdr_get_index_by_serial(const char *serial)
-{
-	int i, cnt, r;
-	char str[256];
-
-	if (!serial)
-		return -1;
-
-	cnt = rtlsdr_get_device_count();
-
-	if (!cnt)
-		return -2;
-
-	for (i = 0; i < cnt; i++) {
-		r = rtlsdr_get_device_usb_strings(i, NULL, NULL, str);
-		if (!r && !strcmp(serial, str))
-			return i;
-	}
-
-	return -3;
-}
+#endif
 
 int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 {
 	int r;
+	uint8_t reg;
+	rtlsdr_dev_t *dev = NULL;
+#ifdef _WIN32
+	struct found_device found;
+#else
 	int i;
 	libusb_device **list;
-	rtlsdr_dev_t *dev = NULL;
 	libusb_device *device = NULL;
 	uint32_t device_count = 0;
 	struct libusb_device_descriptor dd;
-	uint8_t reg;
 	ssize_t cnt;
+#endif
 
 	dev = malloc(sizeof(rtlsdr_dev_t));
 	if (NULL == dev)
@@ -1833,20 +1988,28 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 
 	memset(dev, 0, sizeof(rtlsdr_dev_t));
 
+#ifndef _WIN32
 	r = libusb_init(&dev->ctx);
 	if(r < 0){
 		free(dev);
 		return -1;
 	}
-
 	libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL, 1);
+#endif
 
 	pthread_mutexattr_init(&dev->cs_mutex_attr);
 	pthread_mutexattr_settype(&dev->cs_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
 	pthread_mutex_init(&dev->cs_mutex, &dev->cs_mutex_attr);
 
 	dev->dev_lost = 1;
+	r = -1;
 
+#ifdef _WIN32
+	// Initialize the device
+	List_Devices(index, &found);
+	if(!Open_Device(dev, found.DevicePath))
+		goto err;
+#else
 	cnt = libusb_get_device_list(dev->ctx, &list);
 
 	for (i = 0; i < cnt; i++) {
@@ -1862,11 +2025,8 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 		}
 		device = NULL;
 	}
-
-	if (!device) {
-		r = -1;
+	if (!device)
 		goto err;
-	}
 
 	r = libusb_open(device, &dev->devh);
 	if (r < 0) {
@@ -1905,13 +2065,15 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 		goto err;
 	}
 
-	dev->rtl_xtal = DEF_RTL_XTAL_FREQ;
-
 	/* perform a dummy write, if it fails, reset the device */
 	if (rtlsdr_write_reg(dev, USBB, USB_SYSCTL, 0x09, 1) < 0) {
 		fprintf(stderr, "Resetting device...\n");
 		libusb_reset_device(dev->devh);
 	}
+#endif
+
+	dev->rtl_xtal = DEF_RTL_XTAL_FREQ;
+
 	rtlsdr_init_baseband(dev);
 
 	dev->dev_lost = 0;
@@ -2119,18 +2281,25 @@ demod_found:
 	rtlsdr_set_i2c_repeater(dev, 0);
 
 	*out_dev = dev;
-
 	return 0;
 
 err:
 	if (dev) {
 		if (dev->devh)
 		{
+#ifdef _WIN32
+			WinUsb_Free(dev->devh);
+			CloseHandle(dev->devh);
+		}
+		if (dev->deviceHandle)
+			CloseHandle(dev->deviceHandle);
+#else
             libusb_release_interface(dev->devh, 0);
 			libusb_close(dev->devh);
 		}
 		if (dev->ctx)
 			libusb_exit(dev->ctx);
+#endif
 		free(dev);
 	}
 	return r;
@@ -2153,7 +2322,11 @@ int rtlsdr_close(rtlsdr_dev_t *dev)
 		rtlsdr_deinit_baseband(dev);
 	}
 	pthread_mutex_destroy(&dev->cs_mutex);
-
+#ifdef _WIN32
+	WinUsb_Free(dev->devh);
+	CloseHandle(dev->devh);
+	CloseHandle(dev->deviceHandle);
+#else
 	libusb_release_interface(dev->devh, 0);
 
 #ifdef DETACH_KERNEL_DRIVER
@@ -2164,13 +2337,10 @@ int rtlsdr_close(rtlsdr_dev_t *dev)
 			fprintf(stderr, "Reattaching kernel driver failed!\n");
 	}
 #endif
-
 	libusb_close(dev->devh);
-
 	libusb_exit(dev->ctx);
-
+#endif
 	free(dev);
-
 	return 0;
 }
 
@@ -2181,9 +2351,180 @@ int rtlsdr_reset_buffer(rtlsdr_dev_t *dev)
 
 	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x1002, 2);
 	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x0000, 2);
+	return 0;
+}
+
+#ifdef _WIN32
+int rtlsdr_read_sync(rtlsdr_dev_t *dev, void *buf, int len,  int *n_read)
+{
+	ULONG bytesRead;
+
+	if (!dev)
+		return -1;
+	if(!WinUsb_ReadPipe(dev->devh, EP_RX, buf, len, &bytesRead, NULL))
+		fprintf(stderr,"WinUsb_ReadPipe failed. ErrorCode: %08lXh\n",  GetLastError());
+	*n_read = bytesRead;
+	return 0;
+}
+
+static int _rtlsdr_alloc_async_buffers(rtlsdr_dev_t *dev)
+{
+	unsigned int i;
+
+	if (!dev)
+		return -1;
+
+	if (!dev->overlapped)
+	{
+		dev->overlapped = malloc(dev->xfer_buf_num * sizeof(OVERLAPPED *));
+		for(i = 0; i < dev->xfer_buf_num; ++i)
+		{
+			dev->overlapped[i] = malloc(sizeof(OVERLAPPED));
+			memset(dev->overlapped[i], 0, sizeof(OVERLAPPED));
+		}
+	}
+
+	if (dev->xfer_buf)
+		return -2;
+
+	dev->xfer_buf = malloc(dev->xfer_buf_num * sizeof(unsigned char *));
+	memset(dev->xfer_buf, 0, dev->xfer_buf_num * sizeof(unsigned char *));
+
+	for (i = 0; i < dev->xfer_buf_num; ++i)
+	{
+		dev->xfer_buf[i] = malloc(dev->xfer_buf_len);
+		if (!dev->xfer_buf[i])
+			return -ENOMEM;
+	}
+	return 0;
+}
+
+static int _rtlsdr_free_async_buffers(rtlsdr_dev_t *dev)
+{
+	unsigned int i;
+
+	if (!dev)
+		return -1;
+
+	if (dev->overlapped)
+	{
+		for(i = 0; i < dev->xfer_buf_num; ++i)
+		{
+			if (dev->overlapped[i])
+				free(dev->overlapped[i]);
+		}
+		free(dev->overlapped);
+		dev->overlapped = NULL;
+	}
+
+	if (dev->xfer_buf)
+	{
+		for (i = 0; i < dev->xfer_buf_num; ++i)
+		{
+			if (dev->xfer_buf[i])
+				free(dev->xfer_buf[i]);
+		}
+		free(dev->xfer_buf);
+		dev->xfer_buf = NULL;
+	}
+	return 0;
+}
+
+int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
+				uint32_t buf_num, uint32_t buf_len)
+{
+	unsigned int i;
+	UCHAR policy = 1;
+	DWORD NumberOfBytesTransferred;
+
+	if (!dev)
+		return -1;
+
+	if (RTLSDR_INACTIVE != dev->async_status)
+		return -2;
+
+	dev->async_status = RTLSDR_RUNNING;
+	dev->async_cancel = 0;
+
+	if (buf_num > 0)
+		dev->xfer_buf_num = buf_num;
+	else
+		dev->xfer_buf_num = DEFAULT_BUF_NUMBER;
+
+	if (buf_len > 0 && buf_len % 512 == 0) /* len must be multiple of 512 */
+		dev->xfer_buf_len = buf_len;
+	else
+		dev->xfer_buf_len = DEFAULT_BUF_LENGTH;
+
+	_rtlsdr_alloc_async_buffers(dev);
+
+	if(!WinUsb_SetPipePolicy(dev->devh, EP_RX, RAW_IO, 1, &policy))
+		fprintf(stderr,"WinUsb_GetPipePolicy failed. ErrorCode: %08lXh\n", GetLastError());
+
+	for(i = 0; i < dev->xfer_buf_num; ++i)
+	{
+		if(!WinUsb_ReadPipe(dev->devh, EP_RX, dev->xfer_buf[i],
+							dev->xfer_buf_len, NULL, dev->overlapped[i]))
+		{
+			DWORD error = GetLastError();
+			if (error != ERROR_IO_PENDING)
+	   		{
+		      	dev->async_cancel = 1;
+				fprintf(stderr,"WinUsb_ReadPipe failed. ErrorCode: %08lXh\n", error);
+				break;
+		  	}
+		}
+	}
+	while(!dev->async_cancel)
+	{
+		for(i = 0; i < dev->xfer_buf_num; ++i)
+		{
+			// Wait for the operation to complete before continuing.
+			// You could do some background work if you wanted to.
+			if (WinUsb_GetOverlappedResult(dev->devh, dev->overlapped[i],
+				                           &NumberOfBytesTransferred, TRUE))
+	    	{
+				if (cb)
+					cb(dev->xfer_buf[i], NumberOfBytesTransferred, ctx);
+			}
+			else
+			{
+		      	dev->async_cancel = 1;
+				fprintf(stderr,"WinUsb_GetOverlappedResult failed. ErrorCode: %08lXh\n", GetLastError());
+				break;
+		  	}
+			if(WinUsb_ReadPipe(dev->devh, EP_RX, dev->xfer_buf[i], dev->xfer_buf_len, NULL, dev->overlapped[i]))
+			{
+				fprintf(stderr,"WinUsb_ReadPipe failed. ErrorCode: %08lXh\n", GetLastError());
+				dev->async_cancel = 1;
+				break;
+			}
+		}
+	}
+
+	WinUsb_AbortPipe(dev->devh, EP_RX);
+	dev->async_status = RTLSDR_INACTIVE;
+	_rtlsdr_free_async_buffers(dev);
 
 	return 0;
 }
+
+int rtlsdr_cancel_async(rtlsdr_dev_t *dev)
+{
+	if (!dev)
+		return -1;
+
+	/* if streaming, try to cancel gracefully */
+	if (RTLSDR_RUNNING == dev->async_status)
+	{
+		dev->async_status = RTLSDR_CANCELING;
+		dev->async_cancel = 1;
+		return 0;
+	}
+	return -2;
+}
+
+#else
 
 int rtlsdr_read_sync(rtlsdr_dev_t *dev, void *buf, int len, int *n_read)
 {
@@ -2203,20 +2544,16 @@ static void LIBUSB_CALL _libusb_callback(struct libusb_transfer *xfer)
 		libusb_submit_transfer(xfer); /* resubmit transfer */
 		dev->xfer_errors = 0;
 	} else if (LIBUSB_TRANSFER_CANCELLED != xfer->status) {
-#ifndef _WIN32
 		if (LIBUSB_TRANSFER_ERROR == xfer->status)
 			dev->xfer_errors++;
 
 		if (dev->xfer_errors >= dev->xfer_buf_num ||
 			LIBUSB_TRANSFER_NO_DEVICE == xfer->status) {
-#endif
 			dev->dev_lost = 1;
 			rtlsdr_cancel_async(dev);
 			fprintf(stderr, "cb transfer status: %d, "
 				"canceling...\n", xfer->status);
-#ifndef _WIN32
 		}
-#endif
 	}
 }
 
@@ -2423,9 +2760,7 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 			}
 		}
 	}
-
 	_rtlsdr_free_async_buffers(dev);
-
 	dev->async_status = next_status;
 
 	return r;
@@ -2452,6 +2787,7 @@ int rtlsdr_cancel_async(rtlsdr_dev_t *dev)
 #endif
 	return -2;
 }
+#endif
 
 uint32_t rtlsdr_get_tuner_clock(void *dev)
 {
@@ -2487,42 +2823,40 @@ struct rtl28xxu_reg_val_mask {
 	uint8_t mask;
 };
 
+static const struct rtl28xxu_reg_val refresh_tab[] = {
+	{IRB, IR_RX_IF,			0x03},
+	{IRB, IR_RX_BUF_CTRL,	0x80},
+	{IRB, IR_RX_CTRL,		0x80},
+};
+
+static const struct rtl28xxu_reg_val_mask init_tab[] = {
+	{USBB, DEMOD_CTL1,		0x00, 0x04},
+	{USBB, DEMOD_CTL1,		0x00, 0x08},
+	{USBB, USB_CTRL,		0x20, 0x20},
+	{USBB, GPD,				0x00, 0x08},
+	{USBB, GPOE,			0x08, 0x08},
+	{USBB, GPO,				0x08, 0x08},
+	{IRB, IR_MAX_DURATION0,	0xd0, 0xff},
+	{IRB, IR_MAX_DURATION1,	0x07, 0xff},
+	{IRB, IR_IDLE_LEN0,		0xc0, 0xff},
+	{IRB, IR_IDLE_LEN1,		0x00, 0xff},
+	{IRB, IR_GLITCH_LEN,	0x03, 0xff},
+	{IRB, IR_RX_CLK,		0x09, 0xff},
+	{IRB, IR_RX_CFG,		0x1c, 0xff},
+	{IRB, IR_MAX_H_TOL_LEN,	0x1e, 0xff},
+	{IRB, IR_MAX_L_TOL_LEN,	0x1e, 0xff},
+	{IRB, IR_RX_CTRL,		0x80, 0xff},
+};
+
 int rtlsdr_ir_query(rtlsdr_dev_t *d, uint8_t *buf, size_t buf_len)
 {
 	int ret = -1;
 	size_t i;
 	uint32_t len;
-	static const struct rtl28xxu_reg_val refresh_tab[] = {
-		{IRB, IR_RX_IF,			0x03},
-		{IRB, IR_RX_BUF_CTRL,	0x80},
-		{IRB, IR_RX_CTRL,		0x80},
-	};
-
-	if (!d)
-		return -1;
 
 	/* init remote controller */
 	if (!d->rc_active) {
 		//fprintf(stderr, "initializing remote controller\n");
-		static const struct rtl28xxu_reg_val_mask init_tab[] = {
-			{USBB, DEMOD_CTL1,		0x00, 0x04},
-			{USBB, DEMOD_CTL1,		0x00, 0x08},
-			{USBB, USB_CTRL,		0x20, 0x20},
-			{USBB, GPD,				0x00, 0x08},
-			{USBB, GPOE,			0x08, 0x08},
-			{USBB, GPO,				0x08, 0x08},
-			{IRB, IR_MAX_DURATION0,	0xd0, 0xff},
-			{IRB, IR_MAX_DURATION1,	0x07, 0xff},
-			{IRB, IR_IDLE_LEN0,		0xc0, 0xff},
-			{IRB, IR_IDLE_LEN1,		0x00, 0xff},
-			{IRB, IR_GLITCH_LEN,	0x03, 0xff},
-			{IRB, IR_RX_CLK,		0x09, 0xff},
-			{IRB, IR_RX_CFG,		0x1c, 0xff},
-			{IRB, IR_MAX_H_TOL_LEN,	0x1e, 0xff},
-			{IRB, IR_MAX_L_TOL_LEN,	0x1e, 0xff},
-			{IRB, IR_RX_CTRL,		0x80, 0xff},
-		};
-
 		for (i = 0; i < ARRAY_SIZE(init_tab); i++) {
 			ret = rtlsdr_write_reg_mask(d, init_tab[i].block, init_tab[i].reg,
 					init_tab[i].val, init_tab[i].mask);
@@ -2592,7 +2926,7 @@ int rtlsdr_ir_query(rtlsdr_dev_t *d, uint8_t *buf, size_t buf_len)
 exit:
 	return ret;
 err:
-	printf("failed=%d\n", ret);
+	fprintf(stderr,"failed=%d\n", ret);
 	return ret;
 }
 
@@ -2609,8 +2943,6 @@ int rtlsdr_set_bias_tee_gpio(rtlsdr_dev_t *dev, int gpio, int on)
 
 int rtlsdr_set_bias_tee(rtlsdr_dev_t *dev, int on)
 {
-	if (!dev)
-		return -1;
 	if (dev->slave_demod)
 		return 0;
 	else
@@ -2650,7 +2982,7 @@ int rtlsdr_set_opt_string(rtlsdr_dev_t *dev, const char *opts, int verbose)
 			ret = rtlsdr_set_tuner_bandwidth(dev, bw);
 		}
 		else if (!strncmp(optPart, "agc=", 4)) {
-			int manual = 1 - atoi(optPart +4);	/* invert logic */
+			int manual = 1 - atoi(optPart +4);	// invert logic
 			if (verbose)
 				fprintf(stderr, "rtlsdr_set_opt_string(): parsed tuner gain mode, manual=%d\n", manual);
 			ret = rtlsdr_set_tuner_gain_mode(dev, manual);
@@ -2682,7 +3014,7 @@ int rtlsdr_set_opt_string(rtlsdr_dev_t *dev, const char *opts, int verbose)
 		else {
 			if (verbose)
 				fprintf(stderr, "rtlsdr_set_opt_string(): parsed unknown option '%s'\n", optPart);
-			ret = -1;  /* unknown option */
+			ret = -1;  // unknown option
 		}
 		if (verbose)
 			fprintf(stderr, "  application of option returned %d\n", ret);
