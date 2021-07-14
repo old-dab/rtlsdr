@@ -1,4 +1,3 @@
-
 /*
  * rtl-sdr, turns your Realtek RTL2832 based DVB dongle into a SDR receiver
  * Copyright (C) 2012 by Steve Markgraf <steve@steve-m.de>
@@ -24,10 +23,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <math.h>
 
 #ifdef DEBUG
 #include <stdarg.h>
-#include <math.h>
 #endif
 
 #ifndef _WIN32
@@ -57,14 +56,15 @@
 
 #ifdef _WIN32
 #pragma comment(lib, "ws2_32.lib")
-
 typedef int socklen_t;
-
 #else
 #define closesocket close
 #define SOCKADDR struct sockaddr
 #define SOCKET int
 #define SOCKET_ERROR -1
+#define CTRL_C_EVENT        0
+#define CTRL_BREAK_EVENT    1
+#define CTRL_CLOSE_EVENT    2
 #endif
 
 static ctrl_thread_data_t ctrldata;
@@ -93,11 +93,16 @@ typedef struct { /* structure size must be multiple of 2 bytes */
 
 struct iq_state
 {
+	int show_level;
+	int plot_count;
 	int correct_iq;
+	float effective;
 	float levelI;
 	float levelQ;
 	float ratio;
 };
+
+#define DC_OFFSET (float)127.38
 
 static rtlsdr_dev_t *dev = NULL;
 
@@ -111,45 +116,35 @@ static volatile int do_exit = 0;
 static volatile int ctrlC_exit = 0;
 
 #ifdef DEBUG
-static	int plot_count = 0;
-static FILE *gnuplotPipe; /* Pipe for communicating with gnuplot  */
-static va_list vargs;  /* Holds information about variable arguments */
-static int use_gnuplot = 0; /* Use gnuplot or not (optional) */
-
-/*!
- * Execute gnuplot commands through the opened pipe.
- *
- * \param format string (command) and format specifiers
- * \return 0 on success
- */
-static int gnuplot_exec(char *format, ...)
+static void show_adc_level(uint8_t *buf, int len, struct iq_state *iq)
 {
-	va_start(vargs, format);
-  	vfprintf(gnuplotPipe, format, vargs);
-  	va_end(vargs);
-	return 0;
-}
+	int i;
+	float U;
 
-/*!
- * Open gnuplot pipe.
- * Set labels & title.
- * Exits on failure at opening gnuplot pipe.
- *
- * \return 0 on success
- * \return 1 on given -D argument (don't use gnuplot)
- */
-static int configure_gnuplot(){
-	if (!use_gnuplot)
-		return 1;
-	gnuplotPipe = popen("gnuplot -persist", "w");
-	if (!gnuplotPipe) {
-		printf("Failed to open gnuplot pipe.");
-		exit(1);
+    for (i = 0; i < len; i+=2)
+    {
+		U = (float)buf[i]-DC_OFFSET;
+        iq->effective += iq->ratio * (U*U - iq->effective);
 	}
-	gnuplot_exec("set title 'Spannung am AD-Wandler' enhanced\n");
-	gnuplot_exec("set xlabel 'Samples'\n");
-	gnuplot_exec("set ylabel 'Spannung (mV)'\n");
-	return 0;
+	iq->plot_count += 1;
+	if(iq->plot_count==125)
+	{
+		float dbi;
+		int overflow = 0;
+		for(i=0; i<len; i+=2)
+		{
+			if ((buf[i] == 0) || (buf[i] == 255))
+				overflow++;
+		}
+		U = sqrt(iq->effective) * 3.5;
+		dbi = 20 * log10(U);
+		printf("I = %.1f mV = %.2f dBmV ", U, dbi);
+		if(overflow > 10)
+			printf("overflow!\n");
+		else
+			printf("\n");
+		iq->plot_count = 0;
+	}
 }
 #endif
 
@@ -170,11 +165,11 @@ void usage(void)
 		"\t[-s samplerate in Hz (default: 2048000 Hz)]\n"
 		"\t[-u upper sideband for R820T/R828D (default: lower sideband)]\n"
 		"\t[-v increase verbosity (default: 0)]\n"
-		"\t[-w rtlsdr tuner bandwidth [Hz]]\n"
+		"\t[-w tuner bandwidth in Hz\n"
 		"\t[-D direct_sampling_mode (default: 0, 1 = I, 2 = Q, 3 = I below threshold, 4 = Q below threshold)]\n"
 		"\t[-D direct_sampling_threshold_frequency (default: 0 use tuner specific frequency threshold for 3 and 4)]\n"
 #ifdef DEBUG
-		"\t[-G use Gnuplot\n"
+		"\t[-L show ADC level\n"
 		"\t[-I debug input from keyboard\n"
 #endif
 		"\t[-P ppm_error (default: 0)]\n"
@@ -216,20 +211,20 @@ static void iqBalance(uint8_t *buf, int len, struct iq_state *iq)
 
     for (pos = 0; pos < len; pos+=2)
     {
-        iq->levelI += iq->ratio * (abs((float)buf[pos]-127.5) - iq->levelI);
-        iq->levelQ += iq->ratio * (abs((float)buf[pos+1]-127.5) - iq->levelQ);
+        iq->levelI += iq->ratio * (fabsf((float)buf[pos]-DC_OFFSET) - iq->levelI);
+        iq->levelQ += iq->ratio * (fabsf((float)buf[pos+1]-DC_OFFSET) - iq->levelQ);
 	}
 	iq_ratio = iq->levelI / iq->levelQ;
-	//printf("I/Q = %f%%\n ", iq_ratio);
+	printf("I = %f, Q = %f, I/Q = %f%%\n", iq->levelI, iq->levelQ, iq_ratio);
 	if(iq_ratio > 1.01)
 	{
 	    for (pos = 0; pos < len; pos+=2)
-			buf[pos] = ((float)buf[pos]-127.5) / iq_ratio + 127.5;
+			buf[pos] = ((float)buf[pos]-DC_OFFSET) / iq_ratio + DC_OFFSET;
 	}
 	else if(iq_ratio < 0.99)
 	{
 	    for (pos = 1; pos < len; pos+=2)
-			buf[pos] = ((float)buf[pos]-127.5) * iq_ratio + 127.5;
+			buf[pos] = ((float)buf[pos]-DC_OFFSET) * iq_ratio + DC_OFFSET;
 	}
 }
 
@@ -249,53 +244,9 @@ static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 		rpt->len = len;
 		rpt->next = NULL;
 #ifdef DEBUG
-		plot_count += 1;
-		if(plot_count==200)
-		{
-			if(use_gnuplot)
-			{
-				float dbi, dbq;
-				int i, ui, uq;
-				unsigned char u;
-				unsigned char min=255, max=0;
-				int size = 200;
-
-				for(i=0; i<size; i++)
-				{
-					u = buf[2*i];
-					if (u < min)
-						min = u;
-					if (u > max)
-						max = u;
-				}
-				ui = 7*(max - min)/2;
-				dbi = 20 * log10(ui/2.828);
-				for(i=0; i<size; i++)
-				{
-					u = buf[2*i+1];
-					if (u < min)
-						min = u;
-					if (u > max)
-						max = u;
-				}
-				uq = 7*(max - min)/2;
-				dbq = 20 * log10(uq/2.828);
-				printf("I = %dmVss = %.1fdBmV, Q = %dmVss = %.1fdBmV\n", ui, dbi, uq, dbq);
-
-				gnuplot_exec("plot '-' smooth frequency with linespoints lt -1 notitle\n");
-				for(i=0; i<size; i++)
-					gnuplot_exec("%d	%f\n", i, 3.5*(buf[2*i]-127.5));
-				/**!
-				 * Stop giving points to gnuplot with 'e' command.
-				 * Have to flush the output buffer for [read -> graph] persistence.
-				 */
-				gnuplot_exec("e\n");
-				fflush(gnuplotPipe);
-			}
-			plot_count = 0;
-		}
+		if(iq->show_level)
+			show_adc_level(buf, len, iq);
 #endif
-
 		pthread_mutex_lock(&ll_mutex);
 		if (ll_buffers == NULL) {
 			ll_buffers = rpt;
@@ -648,11 +599,10 @@ int main(int argc, char **argv)
 	void *status;
 	struct timeval tv = {1,0};
 	struct linger ling = {1,0};
-	struct iq_state iq = {0, 0.0f, 0.0f, 1E-05f};
+	struct iq_state iq = {0, 0, 0, 0.0f, 0.0f, 0.0f, 1E-05f};
 	SOCKET listensocket;
 	socklen_t rlen;
 	fd_set readfds;
-	u_long blockmode = 1;
 	dongle_info_t dongle_info;
 	int gains[100];
 	uint32_t bandwidth = 0;
@@ -661,8 +611,8 @@ int main(int argc, char **argv)
 	pthread_t thread_ir;
 	int port_ir = 0;
 #endif
-
 #ifdef _WIN32
+	u_long blockmode = 1;
 	WSADATA wsd;
 	i = WSAStartup(MAKEWORD(2,2), &wsd);
 #else
@@ -674,7 +624,7 @@ int main(int argc, char **argv)
 		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
 
 #ifdef DEBUG
-	while ((opt = getopt(argc, argv, "a:b:cd:f:g:l:n:op:us:vr:w:D:GITP:")) != -1) {
+	while ((opt = getopt(argc, argv, "a:b:cd:f:g:l:n:op:us:vr:w:D:LITP:")) != -1) {
 #else
 	while ((opt = getopt(argc, argv, "a:b:cd:f:g:l:n:op:us:vr:w:D:TP:")) != -1) {
 #endif
@@ -735,8 +685,8 @@ int main(int argc, char **argv)
 				ds_threshold = ds_temp;
 			break;
 #ifdef DEBUG
-		case 'G':
-			use_gnuplot = 1;
+		case 'L':
+			iq.show_level = 1;
 			break;
 		case 'I':
 			port_ir = 1;
@@ -835,10 +785,6 @@ int main(int argc, char **argv)
 
 	/* Reset endpoint before we start reading from it (mandatory) */
 	verbose_reset_buffer(dev);
-
-#ifdef DEBUG
-	configure_gnuplot();
-#endif
 
 	pthread_mutex_init(&exit_cond_lock, NULL);
 	pthread_mutex_init(&ll_mutex, NULL);
@@ -972,10 +918,6 @@ out:
 	closesocket(s);
 #ifdef _WIN32
 	WSACleanup();
-#endif
-#ifdef DEBUG
-	if(use_gnuplot)
-		pclose(gnuplotPipe);
 #endif
 	printf("bye!\n");
 	return r >= 0 ? r : -r;
