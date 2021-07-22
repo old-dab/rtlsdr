@@ -149,8 +149,7 @@ void *ctrl_thread_fn(void *arg)
 		setsockopt(controlSocket, SOL_SOCKET, SO_LINGER, (char *)&ling, sizeof(ling));
 
 		printf("Control client accepted!\n");
-		usleep(5000000);
-
+		
 		while (1) {
 
 			/* check if i2c reporting is to be (de)activated */
