@@ -110,7 +110,6 @@ struct rtlsdr_dev {
 #ifdef _WIN32
 	WINUSB_INTERFACE_HANDLE devh;
 	HANDLE deviceHandle;
-	OVERLAPPED **overlapped;
 #else
 	libusb_context *ctx;
 	struct libusb_device_handle *devh;
@@ -120,10 +119,10 @@ struct rtlsdr_dev {
 	int use_zerocopy;
 	int driver_active;
 	unsigned int xfer_errors;
-#endif
 	unsigned char **xfer_buf;
 	uint32_t xfer_buf_num;
 	uint32_t xfer_buf_len;
+#endif
 	enum rtlsdr_async_status async_status;
 	int async_cancel;
 	/* rtl demod context */
@@ -2344,88 +2343,42 @@ int rtlsdr_close(rtlsdr_dev_t *dev)
 	return 0;
 }
 
+#ifdef _WIN32
 int rtlsdr_reset_buffer(rtlsdr_dev_t *dev)
 {
 	if (!dev)
 		return -1;
 
-	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x1002, 2);
-	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x0000, 2);
+	if(!WinUsb_ResetPipe(dev->devh, EP_RX))
+		fprintf(stderr,"WinUsb_ResetPipe failed. ErrorCode: %08lXh\n", GetLastError());
 	return 0;
 }
 
-#ifdef _WIN32
 int rtlsdr_read_sync(rtlsdr_dev_t *dev, void *buf, int len,  int *n_read)
 {
 	ULONG bytesRead;
 
 	if (!dev)
 		return -1;
+	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x0000, 2);
 	if(!WinUsb_ReadPipe(dev->devh, EP_RX, buf, len, &bytesRead, NULL))
 		fprintf(stderr,"WinUsb_ReadPipe failed. ErrorCode: %08lXh\n",  GetLastError());
 	*n_read = bytesRead;
+	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x1002, 2);
 	return 0;
 }
 
-static int _rtlsdr_alloc_async_buffers(rtlsdr_dev_t *dev)
+static int rtlsdr_read_buffer(rtlsdr_dev_t *dev, uint8_t *xfer_buf, uint32_t buf_len, OVERLAPPED *overlapped)
 {
-	unsigned int i;
-
-	if (!dev)
-		return -1;
-
-	if (!dev->overlapped)
+	if(!WinUsb_ReadPipe(dev->devh, EP_RX, xfer_buf, buf_len, NULL, overlapped))
 	{
-		dev->overlapped = malloc(dev->xfer_buf_num * sizeof(OVERLAPPED *));
-		for(i = 0; i < dev->xfer_buf_num; ++i)
-		{
-			dev->overlapped[i] = malloc(sizeof(OVERLAPPED));
-			memset(dev->overlapped[i], 0, sizeof(OVERLAPPED));
-		}
-	}
-
-	if (dev->xfer_buf)
-		return -2;
-
-	dev->xfer_buf = malloc(dev->xfer_buf_num * sizeof(unsigned char *));
-	memset(dev->xfer_buf, 0, dev->xfer_buf_num * sizeof(unsigned char *));
-
-	for (i = 0; i < dev->xfer_buf_num; ++i)
-	{
-		dev->xfer_buf[i] = malloc(dev->xfer_buf_len);
-		if (!dev->xfer_buf[i])
-			return -ENOMEM;
-	}
-	return 0;
-}
-
-static int _rtlsdr_free_async_buffers(rtlsdr_dev_t *dev)
-{
-	unsigned int i;
-
-	if (!dev)
-		return -1;
-
-	if (dev->overlapped)
-	{
-		for(i = 0; i < dev->xfer_buf_num; ++i)
-		{
-			if (dev->overlapped[i])
-				free(dev->overlapped[i]);
-		}
-		free(dev->overlapped);
-		dev->overlapped = NULL;
-	}
-
-	if (dev->xfer_buf)
-	{
-		for (i = 0; i < dev->xfer_buf_num; ++i)
-		{
-			if (dev->xfer_buf[i])
-				free(dev->xfer_buf[i]);
-		}
-		free(dev->xfer_buf);
-		dev->xfer_buf = NULL;
+		DWORD error = GetLastError();
+		if (error != ERROR_IO_PENDING)
+   		{
+	      	dev->async_cancel = 1;
+			fprintf(stderr,"WinUsb_ReadPipe failed. ErrorCode: %08lXh\n", error);
+			return 1;
+	  	}
 	}
 	return 0;
 }
@@ -2435,7 +2388,8 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 {
 	unsigned int i;
 	UCHAR policy = 1;
-	DWORD NumberOfBytesTransferred;
+	OVERLAPPED **overlapped = NULL;
+	unsigned char **xfer_buf = NULL;
 
 	if (!dev)
 		return -1;
@@ -2446,85 +2400,116 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 	dev->async_status = RTLSDR_RUNNING;
 	dev->async_cancel = 0;
 
-	if (buf_num > 0)
-		dev->xfer_buf_num = buf_num;
-	else
-		dev->xfer_buf_num = DEFAULT_BUF_NUMBER;
+	if (buf_num == 0)
+		buf_num = DEFAULT_BUF_NUMBER;
 
-	if (buf_len > 0 && buf_len % 512 == 0) /* len must be multiple of 512 */
-		dev->xfer_buf_len = buf_len;
-	else
-		dev->xfer_buf_len = DEFAULT_BUF_LENGTH;
+	if (!buf_len || buf_len % 512 != 0) /* len must be multiple of 512 */
+		buf_len = DEFAULT_BUF_LENGTH;
 
-	_rtlsdr_alloc_async_buffers(dev);
-
+	if(!WinUsb_ResetPipe(dev->devh, EP_RX))
+		fprintf(stderr,"WinUsb_ResetPipe failed. ErrorCode: %08lXh\n", GetLastError());
 	if(!WinUsb_SetPipePolicy(dev->devh, EP_RX, RAW_IO, 1, &policy))
 		fprintf(stderr,"WinUsb_GetPipePolicy failed. ErrorCode: %08lXh\n", GetLastError());
 
-	for(i = 0; i < dev->xfer_buf_num; ++i)
+	// Alloc async buffers
+	overlapped = malloc(buf_num * sizeof(OVERLAPPED *));
+	if(overlapped)
 	{
-		if(!WinUsb_ReadPipe(dev->devh, EP_RX, dev->xfer_buf[i],
-							dev->xfer_buf_len, NULL, dev->overlapped[i]))
+		for(i = 0; i < buf_num; ++i)
 		{
-			DWORD error = GetLastError();
-			if (error != ERROR_IO_PENDING)
-	   		{
-		      	dev->async_cancel = 1;
-				fprintf(stderr,"WinUsb_ReadPipe failed. ErrorCode: %08lXh\n", error);
-				break;
-		  	}
+			overlapped[i] = malloc(sizeof(OVERLAPPED));
+			memset(overlapped[i], 0, sizeof(OVERLAPPED));
 		}
 	}
-	while(!dev->async_cancel)
+	xfer_buf = malloc(buf_num * sizeof(unsigned char *));
+	if(xfer_buf)
 	{
-		for(i = 0; i < dev->xfer_buf_num; ++i)
+		memset(xfer_buf, 0, buf_num * sizeof(unsigned char *));
+		for(i = 0; i < buf_num; ++i)
 		{
-			// Wait for the operation to complete before continuing.
-			// You could do some background work if you wanted to.
-			if (WinUsb_GetOverlappedResult(dev->devh, dev->overlapped[i],
-				                           &NumberOfBytesTransferred, TRUE))
-	    	{
-				if (cb)
-					cb(dev->xfer_buf[i], NumberOfBytesTransferred, ctx);
-			}
-			else
+			xfer_buf[i] = malloc(buf_len);
+			if (!xfer_buf[i])
 			{
-		      	dev->async_cancel = 1;
-				fprintf(stderr,"WinUsb_GetOverlappedResult failed. ErrorCode: %08lXh\n", GetLastError());
-				break;
-		  	}
-			if(WinUsb_ReadPipe(dev->devh, EP_RX, dev->xfer_buf[i], dev->xfer_buf_len, NULL, dev->overlapped[i]))
-			{
-				fprintf(stderr,"WinUsb_ReadPipe failed. ErrorCode: %08lXh\n", GetLastError());
 				dev->async_cancel = 1;
 				break;
 			}
 		}
 	}
 
-	WinUsb_AbortPipe(dev->devh, EP_RX);
-	dev->async_status = RTLSDR_INACTIVE;
-	_rtlsdr_free_async_buffers(dev);
+	// Start transfers
+	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x0000, 2);
 
+	// Submit transfers
+	for(i = 0; i < buf_num; ++i)
+	{
+		if(rtlsdr_read_buffer(dev, xfer_buf[i], buf_len, overlapped[i]))
+			break;
+	}
+
+	// Receiver loop
+	while(!dev->async_cancel)
+	{
+		for(i = 0; i < buf_num; ++i)
+		{
+			DWORD NumberOfBytesTransferred = 0;
+			// Wait for the operation to complete before continuing.
+			// You could do some background work if you wanted to.
+			if (WinUsb_GetOverlappedResult(dev->devh, overlapped[i],
+				                           &NumberOfBytesTransferred, TRUE))
+	    	{
+				if (NumberOfBytesTransferred && cb)
+					cb(xfer_buf[i], NumberOfBytesTransferred, ctx);
+			}
+			else
+			{
+				fprintf(stderr,"WinUsb_GetOverlappedResult failed. ErrorCode: %08lXh\n", GetLastError());
+		      	dev->async_cancel = 1;
+				break;
+		  	}
+			if(rtlsdr_read_buffer(dev, xfer_buf[i], buf_len, overlapped[i]))
+				break;
+		}
+	}
+
+	// Stop transfers
+	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x1002, 2);
+	if(!WinUsb_AbortPipe(dev->devh, EP_RX))
+		fprintf(stderr,"WinUsb_AbortPipe failed. ErrorCode: %08lXh\n", GetLastError());
+	dev->async_status = RTLSDR_INACTIVE;
+
+	// Free the buffers
+	if (overlapped)
+	{
+		for(i = 0; i < buf_num; ++i)
+		{
+			if (overlapped[i])
+				free(overlapped[i]);
+		}
+		free(overlapped);
+	}
+	if (xfer_buf)
+	{
+		for (i = 0; i < buf_num; ++i)
+		{
+			if (xfer_buf[i])
+				free(xfer_buf[i]);
+		}
+		free(xfer_buf);
+	}
 	return 0;
 }
 
-int rtlsdr_cancel_async(rtlsdr_dev_t *dev)
+#else
+
+int rtlsdr_reset_buffer(rtlsdr_dev_t *dev)
 {
 	if (!dev)
 		return -1;
 
-	/* if streaming, try to cancel gracefully */
-	if (RTLSDR_RUNNING == dev->async_status)
-	{
-		dev->async_status = RTLSDR_CANCELING;
-		dev->async_cancel = 1;
-		return 0;
-	}
-	return -2;
+	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x1002, 2);
+	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x0000, 2);
+	return 0;
 }
-
-#else
 
 int rtlsdr_read_sync(rtlsdr_dev_t *dev, void *buf, int len, int *n_read)
 {
@@ -2765,6 +2750,7 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 
 	return r;
 }
+#endif
 
 int rtlsdr_cancel_async(rtlsdr_dev_t *dev)
 {
@@ -2787,7 +2773,6 @@ int rtlsdr_cancel_async(rtlsdr_dev_t *dev)
 #endif
 	return -2;
 }
-#endif
 
 uint32_t rtlsdr_get_tuner_clock(void *dev)
 {
