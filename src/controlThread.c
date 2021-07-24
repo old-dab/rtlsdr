@@ -34,20 +34,15 @@
 #include <fcntl.h>
 #else
 #include <winsock2.h>
-#include "getopt/getopt.h"
 #endif
 
 #ifdef NEED_PTHREADS_WORKARROUND
 #define HAVE_STRUCT_TIMESPEC
 #endif
-#include <pthread.h>
 
 #include "rtl-sdr.h"
 #include "rtl_tcp.h"
 #include "controlThread.h"
-#include "convenience/convenience.h"
-
-#include "tuner_r82xx.h"
 
 #ifdef _WIN32
 #pragma comment(lib, "ws2_32.lib")
@@ -149,7 +144,7 @@ void *ctrl_thread_fn(void *arg)
 		setsockopt(controlSocket, SOL_SOCKET, SO_LINGER, (char *)&ling, sizeof(ling));
 
 		printf("Control client accepted!\n");
-		
+
 		while (1) {
 
 			/* check if i2c reporting is to be (de)activated */
