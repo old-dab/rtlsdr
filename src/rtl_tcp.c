@@ -97,6 +97,7 @@ struct iq_state
 	int plot_count;
 	int correct_iq;
 	float effective;
+	float dbi;
 	float levelI;
 	float levelQ;
 	float ratio;
@@ -138,11 +139,15 @@ static void show_adc_level(uint8_t *buf, int len, struct iq_state *iq)
 		}
 		U = sqrt(iq->effective) * 3.5;
 		dbi = 20 * log10(U);
-		printf("I = %.1f mV = %.2f dBmV ", U, dbi);
-		if(overflow > 10)
-			printf("overflow!\n");
-		else
-			printf("\n");
+		if(dbi >= iq->dbi+0.01f || dbi <= iq->dbi-0.01f)
+		{
+			printf("I = %.1f mV = %.2f dBmV ", U, dbi);
+			if(overflow > 10)
+				printf("overflow!\n");
+			else
+				printf("\n");
+			iq->dbi = dbi;
+		}
 		iq->plot_count = 0;
 	}
 }
@@ -599,7 +604,7 @@ int main(int argc, char **argv)
 	void *status;
 	struct timeval tv = {1,0};
 	struct linger ling = {1,0};
-	struct iq_state iq = {0, 0, 0, 0.0f, 0.0f, 0.0f, 1E-05f};
+	struct iq_state iq = {0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, 1E-05f};
 	SOCKET listensocket;
 	socklen_t rlen;
 	fd_set readfds;
