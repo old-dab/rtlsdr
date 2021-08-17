@@ -45,6 +45,7 @@
 extern int16_t interpolate(int16_t freq, int size, const int16_t *freqs, const int16_t *gains);
 extern int rtlsdr_get_agc_val(void *dev, int *slave_demod);
 extern uint16_t rtlsdr_demod_read_reg(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, uint8_t len);
+extern int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, uint32_t freq);
 
 
 /*
@@ -751,15 +752,6 @@ static int r82xx_set_pll(struct r82xx_priv *priv, uint32_t freq)
 	sdm = vco_div % 65536;
     //printf("nint = %d, sdm = %d\n", nint, sdm);
 
-#if 0
-	{
-	  uint8_t mix_div = 1 << (div_num + 1);
-	  uint64_t actual_vco = (uint64_t)2 * pll_ref * nint + (uint64_t)2 * pll_ref * sdm / 65536;
-	  fprintf(stderr, "[R82XX] requested %uHz; selected mix_div=%u vco_freq=%llu nint=%u sdm=%u; actual_vco=%llu; tuning error=%+dHz\n",
-		  freq, mix_div, vco_freq, nint, sdm, actual_vco, (int32_t) (actual_vco - vco_freq) / mix_div);
-	}
-#endif
-
 	ni = (nint - 13) / 4;
 	si = nint - 4 * ni - 13;
 	rc = r82xx_write_reg(priv, 0x14, ni + (si << 6));
@@ -809,8 +801,25 @@ static int r82xx_set_pll(struct r82xx_priv *priv, uint32_t freq)
 
 	/* set pll autotune = 8kHz */
 	rc = r82xx_write_reg_mask(priv, 0x1a, 0x08, 0x08);
+	if (rc < 0)
+		return rc;
 
-	return rc;
+#if 1
+	{
+		int tuning_error, zf;
+		uint8_t mix_div = 1 << (div_num + 1);
+		uint64_t actual_vco = (uint64_t)2 * pll_ref * nint + (uint64_t)2 * pll_ref * sdm / 65536;
+		tuning_error = (int)(actual_vco - vco_freq) / mix_div;
+		//fprintf(stderr, "[R82XX] requested %uHz; selected mix_div=%u vco_freq=%llu nint=%u sdm=%u; actual_vco=%llu; tuning error=%+dHz\n",
+		//		freq, mix_div, vco_freq, nint, sdm, actual_vco, tuning_error);
+		if(priv->sideband)
+			zf = priv->int_freq - tuning_error;
+		else
+			zf = priv->int_freq + tuning_error;
+		return rtlsdr_set_if_freq(priv->rtl_dev, zf);
+	}
+#endif
+	return 0;
 }
 
 static int r82xx_sysfreq_sel(struct r82xx_priv *priv,
