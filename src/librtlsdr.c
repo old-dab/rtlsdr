@@ -154,7 +154,7 @@ struct rtlsdr_dev {
 	int verbose;
 };
 
-static int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, uint32_t freq);
+int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, uint32_t freq);
 static int rtlsdr_update_ds(rtlsdr_dev_t *dev, uint32_t freq);
 static int rtlsdr_set_spectrum_inversion(rtlsdr_dev_t *dev, int sideband);
 
@@ -1122,7 +1122,7 @@ void print_usb_register(rtlsdr_dev_t *dev, uint16_t addr)
 }
 #endif
 
-static int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, uint32_t freq)
+int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, uint32_t freq)
 {
 	uint32_t rtl_xtal;
 	int32_t if_freq;
@@ -1145,6 +1145,7 @@ static int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, uint32_t freq)
 	tmp = if_freq & 0xff;
 	r |= rtlsdr_demod_write_reg(dev, 1, 0x1b, tmp, 1);
 
+	//fprintf(stderr, "int_freq = %d\n", freq);
 	return r;
 }
 
@@ -2516,7 +2517,7 @@ int rtlsdr_read_sync(rtlsdr_dev_t *dev, void *buf, int len, int *n_read)
 	if (!dev)
 		return -1;
 
-	return libusb_bulk_transfer(dev->devh, 0x81, buf, len, n_read, BULK_TIMEOUT);
+	return libusb_bulk_transfer(dev->devh, EP_RX, buf, len, n_read, BULK_TIMEOUT);
 }
 
 static void LIBUSB_CALL _libusb_callback(struct libusb_transfer *xfer)
@@ -2681,7 +2682,7 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 	for(i = 0; i < dev->xfer_buf_num; ++i) {
 		libusb_fill_bulk_transfer(dev->xfer[i],
 						dev->devh,
-						0x81,
+						EP_RX,
 						dev->xfer_buf[i],
 						dev->xfer_buf_len,
 						_libusb_callback,
