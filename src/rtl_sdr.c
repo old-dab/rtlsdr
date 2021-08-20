@@ -122,7 +122,7 @@ int main(int argc, char **argv)
 	int n_read;
 	int r, opt;
 	int gain = 0;
-	int ppm_error = 0;
+	float ppm_error = 0;
 	int sync_mode = 0;
 	FILE *file;
 	uint8_t *buffer;
@@ -155,7 +155,7 @@ int main(int argc, char **argv)
 			bandwidth = (uint32_t)atofs(optarg);
 			break;
 		case 'p':
-			ppm_error = atoi(optarg);
+			ppm_error = atof(optarg);
 			break;
 		case 'O':
 			rtlOpts = optarg;
