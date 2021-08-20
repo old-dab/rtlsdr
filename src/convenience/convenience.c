@@ -1,4 +1,3 @@
-
 /*
  * Copyright (C) 2014 by Kyle Keen <keenerd@gmail.com>
  *
@@ -53,6 +52,7 @@ int gettimeofday(struct timeval *tp, void *tzp)
 		unsigned __int64 ns100; /* Time since 1 Jan 1601, in 100ns units */
 		FILETIME ft;
 	} _now;
+	(void) tzp;
 
 	if(tp) {
 		GetSystemTimeAsFileTime (&_now.ft);
@@ -276,16 +276,16 @@ int verbose_gain_set(rtlsdr_dev_t *dev, int gain)
 	return r;
 }
 
-int verbose_ppm_set(rtlsdr_dev_t *dev, int ppm_error)
+int verbose_ppm_set(rtlsdr_dev_t *dev, float ppm_error)
 {
 	int r;
 	if (ppm_error == 0) {
 		return 0;}
-	r = rtlsdr_set_freq_correction(dev, ppm_error);
+	r = rtlsdr_set_freq_correction(dev, (int)(ppm_error*100.0));
 	if (r < 0) {
 		fprintf(stderr, "WARNING: Failed to set ppm error.\n");
 	} else {
-		fprintf(stderr, "Tuner error set to %i ppm.\n", ppm_error);
+		fprintf(stderr, "Tuner error set to %0.2f ppm.\n", ppm_error);
 	}
 	return r;
 }
