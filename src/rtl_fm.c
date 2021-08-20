@@ -158,7 +158,7 @@ struct dongle_state
 	int	  gain;
 	int16_t  buf16[MAXIMUM_BUF_LENGTH];
 	uint32_t buf_len;
-	int	  ppm_error;
+	float	  ppm_error;
 	int	  offset_tuning;
 	int	  direct_sampling;
 	int	  mute;
@@ -1773,7 +1773,7 @@ int main(int argc, char **argv)
 			}
 			break;
 		case 'p':
-			dongle.ppm_error = atoi(optarg);
+			dongle.ppm_error = atof(optarg);
 			custom_ppm = 1;
 			break;
 		case 'E':
@@ -1876,7 +1876,7 @@ int main(int argc, char **argv)
 	if (verbosity)
 		fprintf(stderr, "verbosity set to %d\n", verbosity);
 
-	/* quadruple sample_rate to limit to Δθ to ±π/2 */
+	/* quadruple sample_rate to limit to Î”Î¸ to Â±Ï€/2 */
 	demod.rate_in *= demod.post_downsample;
 
 	if (!output.rate) {
