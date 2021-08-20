@@ -438,8 +438,8 @@ static void *command_worker(void *arg)
 			rtlsdr_set_tuner_gain(dev, param);
 			break;
 		case SET_FREQUENCY_CORRECTION://0x05
-			printf("set freq correction %d\n", (int)param);
-			rtlsdr_set_freq_correction(dev, (int)param);
+			printf("set freq correction to %d ppm\n", (int)param);
+			rtlsdr_set_freq_correction(dev, (int)(param*100));
 			break;
 		case SET_IF_STAGE://0x06
 			printf("set if stage %d gain %d\n", param >> 16, (short)(param & 0xffff));
@@ -500,6 +500,10 @@ static void *command_worker(void *arg)
 		case SET_DITHERING://0x49
 			printf("%sable dithering\n", param ? "en" : "dis");
 			rtlsdr_set_dithering(dev, param);
+			break;
+		case SET_001_PPM://0x05
+			printf("set freq correction to %0.2f ppm\n", (int)param/100.0);
+			rtlsdr_set_freq_correction(dev, (int)param);
 			break;
 		default:
 			break;
@@ -598,7 +602,7 @@ int main(int argc, char **argv)
 	int dev_index = 0;
 	int dev_given = 0;
 	int gain = 0;
-	int ppm_error = 0;
+	float ppm_error = 0;
 	struct llist *curelem,*prev;
 	pthread_attr_t attr;
 	void *status;
@@ -698,7 +702,7 @@ int main(int argc, char **argv)
 			break;
 #endif
 		case 'P':
-			ppm_error = atoi(optarg);
+			ppm_error = atof(optarg);
 			break;
 		case 'T':
 			enable_biastee = 1;
