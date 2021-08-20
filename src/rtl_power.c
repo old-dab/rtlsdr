@@ -768,7 +768,7 @@ int main(int argc, char **argv)
 	int gain = AUTO_GAIN; // tenths of a dB
 	int dev_index = 0;
 	int dev_given = 0;
-	int ppm_error = 0;
+	float ppm_error = 0;
 	int interval = 10;
 	int fft_threads = 1;
 	int smoothing = 0;
@@ -838,7 +838,7 @@ int main(int argc, char **argv)
 			fft_threads = atoi(optarg);
 			break;
 		case 'p':
-			ppm_error = atoi(optarg);
+			ppm_error = atof(optarg);
 			break;
 		case '1':
 			single = 1;
