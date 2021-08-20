@@ -324,7 +324,7 @@ static void *command_worker(void *arg)
 			break;
 		case SET_FREQUENCY_CORRECTION:
 			printf("set freq correction %d\n", (int)param);
-			rtlsdr_set_freq_correction(dev, (int)param);
+			rtlsdr_set_freq_correction(dev, (int)param*100);
 			break;
 		case SET_IF_STAGE:
 			printf("set if stage %d gain %d\n", param >> 16, (short)(param & 0xffff));
@@ -480,7 +480,7 @@ int main(int argc, char **argv)
 	int dev_index = 0;
 	int dev_given = 0;
 	int gain = 0;
-	int ppm_error = 0;
+	float ppm_error = 0;
 	struct llist *curelem,*prev;
 	pthread_attr_t attr;
 	void *status;
@@ -536,7 +536,7 @@ int main(int argc, char **argv)
 			llbuf_num = atoi(optarg);
 			break;
 		case 'P':
-			ppm_error = atoi(optarg);
+			ppm_error = atof(optarg);
 			break;
 		case 'w':
 			bandwidth = (uint32_t)atofs(optarg);
