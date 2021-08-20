@@ -139,7 +139,7 @@ int verbose_gain_set(rtlsdr_dev_t *dev, int gain);
  * \return 0 on success
  */
 
-int verbose_ppm_set(rtlsdr_dev_t *dev, int ppm_error);
+int verbose_ppm_set(rtlsdr_dev_t *dev, float ppm_error);
 
 /*!
  * Reset buffer
