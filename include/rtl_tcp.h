@@ -69,7 +69,7 @@ enum RTL_TCP_COMMANDS {
     REPORT_I2C_REGS           = 0x48,   /* perodically report I2C registers
                                          * - if reverse channel is enabled */
     SET_DITHERING			  = 0x49,   /* Enable or disable frequency dithering for R820T */
-
+	SET_001_PPM				  = 0x4A	/* Set frequency correction in multiples of 0.01 ppm */
 };
 
 #ifdef __cplusplus
