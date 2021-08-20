@@ -344,8 +344,10 @@ void messages(uint16_t *buf, int len)
 
 static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 {
-	if (do_exit) {
-		return;}
+	(void) ctx;
+
+	if (do_exit)
+		return;
 	memcpy(buffer, buf, len);
 	safe_cond_signal(&ready, &ready_m);
 }
@@ -353,6 +355,8 @@ static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 static void *demod_thread_fn(void *arg)
 {
 	int len;
+	(void) arg;
+
 	while (!do_exit) {
 		safe_cond_wait(&ready, &ready_m);
 		len = magnitute(buffer, DEFAULT_BUF_LENGTH);
@@ -373,7 +377,7 @@ int main(int argc, char **argv)
 	int gain = AUTO_GAIN; /* tenths of a dB */
 	int dev_index = 0;
 	int dev_given = 0;
-	int ppm_error = 0;
+	float ppm_error = 0;
 	int enable_biastee = 0;
 	pthread_cond_init(&ready, NULL);
 	pthread_mutex_init(&ready_m, NULL);
@@ -390,7 +394,7 @@ int main(int argc, char **argv)
 			gain = (int)(atof(optarg) * 10);
 			break;
 		case 'p':
-			ppm_error = atoi(optarg);
+			ppm_error = atof(optarg);
 			break;
 		case 'V':
 			verbose_output = 1;
