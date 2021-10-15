@@ -165,7 +165,7 @@ enum e4k_band {
 };
 
 struct e4k_pll_params {
-	uint32_t fosc;
+	double fosc;
 	uint32_t flo;
 };
 
