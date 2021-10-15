@@ -39,7 +39,6 @@
 #define KHZ(x)	((x)*1000)
 
 extern int16_t interpolate(int16_t freq, int size, const int16_t *freqs, const int16_t *gains);
-extern int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, uint32_t freq);
 
 
 uint32_t unsigned_delta(uint32_t a, uint32_t b)
@@ -319,7 +318,7 @@ int e4k_tune_freq(struct e4k_state *e4k, uint32_t freq)
 	uint16_t x;			//sigma delta
 	uint8_t z;			//feedback divider
 	uint8_t r_idx = 0;	//Register Synth7
-	uint32_t fosc = e4k->vco.fosc; // Quartz frequency
+	double fosc = e4k->vco.fosc; // Quartz frequency
 
 	for(i = 0; i < ARRAY_SIZE(pll_vars); ++i)
 	{
@@ -348,7 +347,7 @@ int e4k_tune_freq(struct e4k_state *e4k, uint32_t freq)
 	 * This avoids X/Y = 0.  However, then we would overflow a 32bit
 	 * integer, as we cannot hold e.g. 26 MHz * 65536 either.
 	 */
-	fvco = (uint64_t)fosc * z + ((uint64_t)fosc * x) / E4K_PLL_Y;
+	fvco = fosc * z + (fosc * x) / E4K_PLL_Y;
 	if (fvco == 0)
 		return -EINVAL;
 
