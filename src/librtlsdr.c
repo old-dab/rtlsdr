@@ -154,7 +154,6 @@ struct rtlsdr_dev {
 	int verbose;
 };
 
-int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, uint32_t freq);
 static int rtlsdr_update_ds(rtlsdr_dev_t *dev, uint32_t freq);
 static int rtlsdr_set_spectrum_inversion(rtlsdr_dev_t *dev, int sideband);
 
@@ -1122,7 +1121,7 @@ void print_usb_register(rtlsdr_dev_t *dev, uint16_t addr)
 }
 #endif
 
-int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, uint32_t freq)
+int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, int32_t freq)
 {
 	uint32_t rtl_xtal;
 	int32_t if_freq;
@@ -1145,7 +1144,7 @@ int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, uint32_t freq)
 	tmp = if_freq & 0xff;
 	r |= rtlsdr_demod_write_reg(dev, 1, 0x1b, tmp, 1);
 
-	//fprintf(stderr, "int_freq = %d\n", freq);
+	//fprintf(stderr, "if_freq=%d, %d, xtal=%u\n", freq, if_freq, rtl_xtal);
 	return r;
 }
 
@@ -1203,7 +1202,7 @@ int rtlsdr_set_xtal_freq(rtlsdr_dev_t *dev, uint32_t rtl_freq, uint32_t tuner_fr
 	return r;
 }
 
-int rtlsdr_get_xtal_freq(rtlsdr_dev_t *dev, uint32_t *rtl_freq, uint32_t *tuner_freq)
+int rtlsdr_get_xtal_freq(rtlsdr_dev_t *dev, uint32_t *rtl_freq, double *tuner_freq)
 {
 	if (!dev)
 		return -1;
@@ -1214,8 +1213,7 @@ int rtlsdr_get_xtal_freq(rtlsdr_dev_t *dev, uint32_t *rtl_freq, uint32_t *tuner_
 		*rtl_freq = (uint32_t) APPLY_PPM_CORR(dev->rtl_xtal, dev->corr);
 
 	if (tuner_freq)
-		*tuner_freq = (uint32_t) APPLY_PPM_CORR(dev->tun_xtal, dev->corr);
-
+		*tuner_freq = APPLY_PPM_CORR(dev->tun_xtal, dev->corr);
 	return 0;
 }
 
@@ -2002,6 +2000,7 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 	pthread_mutex_init(&dev->cs_mutex, &dev->cs_mutex_attr);
 
 	dev->dev_lost = 1;
+	//dev->freq = 100000000;
 	r = -1;
 
 #ifdef _WIN32
@@ -2438,6 +2437,7 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 	}
 
 	// Start transfers
+	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x1002, 2);
 	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x0000, 2);
 
 	// Submit transfers
@@ -2476,7 +2476,6 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x1002, 2);
 	if(!WinUsb_AbortPipe(dev->devh, EP_RX))
 		fprintf(stderr,"WinUsb_AbortPipe failed. ErrorCode: %08lXh\n", GetLastError());
-	dev->async_status = RTLSDR_INACTIVE;
 
 	// Free the buffers
 	if (overlapped)
@@ -2497,6 +2496,7 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 		}
 		free(xfer_buf);
 	}
+	dev->async_status = RTLSDR_INACTIVE;
 	return 0;
 }
 
@@ -2775,9 +2775,9 @@ int rtlsdr_cancel_async(rtlsdr_dev_t *dev)
 	return -2;
 }
 
-uint32_t rtlsdr_get_tuner_clock(void *dev)
+double rtlsdr_get_tuner_clock(void *dev)
 {
-	uint32_t tuner_freq;
+	double tuner_freq;
 
 	if (!dev)
 		return 0;
