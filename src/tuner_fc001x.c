@@ -29,7 +29,6 @@
 #include "rtl-sdr.h"
 #include "tuner_fc001x.h"
 
-extern int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, uint32_t freq);
 
 static int fc001x_write(void *dev, uint8_t reg, uint8_t *buf, int len)
 {
@@ -257,7 +256,7 @@ static int fc001x_set_freq(void *dev, uint32_t freq, enum rtlsdr_tuner tuner_typ
 	uint8_t reg[7], am, pm, tmp;
 	uint8_t multi;				//multi * freq = f_vco
 	int64_t f_vco;				//VCO frequency
-	uint32_t xtal_freq_div_2;	//14.4 MHz
+	double xtal_freq_div_2;	//14.4 MHz
 	uint16_t xdiv;
 	int16_t xin;
 	int vco_select = 0;
@@ -412,7 +411,7 @@ static int fc001x_set_freq(void *dev, uint32_t freq, enum rtlsdr_tuner tuner_typ
 
 	/* From VCO frequency determines the XIN (fractional part of Delta
 	   Sigma PLL) and divided value (XDIV) */
-	xin = (int16_t)(((f_vco % xtal_freq_div_2) << 15) / xtal_freq_div_2);
+	xin = (int16_t)(((f_vco % (int64_t)xtal_freq_div_2) << 15) / (int64_t)xtal_freq_div_2);
 	if (xin >= 16384)
 		xin -= 32768;
 	reg[3] = xin >> 8;
@@ -482,7 +481,7 @@ static int fc001x_set_freq(void *dev, uint32_t freq, enum rtlsdr_tuner tuner_typ
 	}
 #if 1
 	{
-		int64_t actual_vco = (int64_t)xtal_freq_div_2 * xdiv + (int64_t)xtal_freq_div_2 * xin / 32768;
+		int64_t actual_vco = xtal_freq_div_2 * xdiv + xtal_freq_div_2 * xin / 32768;
 		int tuning_error = (f_vco - actual_vco) / multi;
 		//printf("f_vco=%llu, xin=%d, xdiv=%u, am=%u, pm=%u\n", f_vco, xin, xdiv, am, pm);
 		//printf("actual_vco = %lld, tuning_error = %d\n", actual_vco, tuning_error);
