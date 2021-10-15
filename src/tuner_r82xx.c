@@ -45,7 +45,6 @@
 extern int16_t interpolate(int16_t freq, int size, const int16_t *freqs, const int16_t *gains);
 extern int rtlsdr_get_agc_val(void *dev, int *slave_demod);
 extern uint16_t rtlsdr_demod_read_reg(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, uint8_t len);
-extern int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, uint32_t freq);
 
 
 /*
@@ -684,10 +683,9 @@ static int r82xx_set_mux(struct r82xx_priv *priv, uint32_t freq)
 static int r82xx_set_pll(struct r82xx_priv *priv, uint32_t freq)
 {
 	int rc, i;
-	uint64_t vco_freq;
-	uint64_t vco_div;
+	int64_t vco_freq, vco_div;
 	uint32_t vco_min = 1770000000;
-	uint32_t pll_ref;
+	double pll_ref;
 	uint32_t sdm;
 	uint8_t div_num;
 	uint8_t refdiv2 = 0;
@@ -701,7 +699,7 @@ static int r82xx_set_pll(struct r82xx_priv *priv, uint32_t freq)
 
 	pll_ref = priv->cfg->xtal;
 
-	if (priv->cfg->xtal > 24000000) {
+	if (priv->cfg->xtal > 24000000.0) {
 		pll_ref /= 2;
 		refdiv2 = 0x10;
 	}
@@ -728,7 +726,7 @@ static int r82xx_set_pll(struct r82xx_priv *priv, uint32_t freq)
 	if (rc < 0)
 		return rc;
 
-	vco_freq = (uint64_t)freq << (div_num + 1);
+	vco_freq = (int64_t)freq << (div_num + 1);
 
 	/*
 	 * We want to approximate:
@@ -806,12 +804,12 @@ static int r82xx_set_pll(struct r82xx_priv *priv, uint32_t freq)
 
 #if 1
 	{
-		int tuning_error, zf;
+		int zf;
 		uint8_t mix_div = 1 << (div_num + 1);
-		uint64_t actual_vco = (uint64_t)2 * pll_ref * nint + (uint64_t)2 * pll_ref * sdm / 65536;
-		tuning_error = (int)(actual_vco - vco_freq) / mix_div;
-		//fprintf(stderr, "[R82XX] requested %uHz; selected mix_div=%u vco_freq=%llu nint=%u sdm=%u; actual_vco=%llu; tuning error=%+dHz\n",
-		//		freq, mix_div, vco_freq, nint, sdm, actual_vco, tuning_error);
+		int64_t actual_vco = 2 * pll_ref * nint + 2 * pll_ref * sdm / 65536;
+		int tuning_error = (int)(actual_vco - vco_freq) / mix_div;
+		//fprintf(stderr, "[R82XX] requested %uHz; selected mix_div=%u vco_freq=%lld nint=%u sdm=%u; actual_vco=%lld; xtal=%.1f, tuning error=%dHz\n",
+		//		freq, mix_div, vco_freq, nint, sdm, actual_vco, priv->cfg->xtal, tuning_error);
 		if(priv->sideband)
 			zf = priv->int_freq - tuning_error;
 		else
