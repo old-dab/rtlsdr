@@ -89,7 +89,7 @@ RTLSDR_API int rtlsdr_set_xtal_freq(rtlsdr_dev_t *dev, uint32_t rtl_freq,
  * \return 0 on success
  */
 RTLSDR_API int rtlsdr_get_xtal_freq(rtlsdr_dev_t *dev, uint32_t *rtl_freq,
-				    uint32_t *tuner_freq);
+				    double *tuner_freq);
 
 /*!
  * Get USB device strings.
@@ -510,6 +510,7 @@ RTLSDR_API int rtlsdr_reset_demod(rtlsdr_dev_t *dev);
  * \return 0 on success
  */
 RTLSDR_API int rtlsdr_set_dithering(rtlsdr_dev_t *dev, int dither);
+RTLSDR_API int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, int32_t freq);
 
 #ifdef DEBUG
 RTLSDR_API void print_demod_register(rtlsdr_dev_t *dev, uint8_t page);
