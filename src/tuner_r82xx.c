@@ -801,13 +801,20 @@ static int r82xx_set_pll(struct r82xx_priv *priv, uint32_t freq)
 	rc = r82xx_write_reg_mask(priv, 0x1a, 0x08, 0x08);
 	if (rc < 0)
 		return rc;
-
-#if 1
 	{
-		int zf;
+		int zf, tuning_error;
+		int64_t actual_vco;
+		double dither_offset = 0.0;
 		uint8_t mix_div = 1 << (div_num + 1);
-		int64_t actual_vco = 2 * pll_ref * nint + 2 * pll_ref * sdm / 65536;
-		int tuning_error = (int)(actual_vco - vco_freq) / mix_div;
+		if(sdm) //frac pll enabled
+		{
+			if(r82xx_read_cache_reg(priv, 0x12) & 0x10)
+				dither_offset = 0.5;
+			else
+				dither_offset = 0.25;
+		}
+		actual_vco = 2 * pll_ref * nint + 2 * pll_ref * (dither_offset + sdm) / 65536;
+		tuning_error = (int)(actual_vco - vco_freq) / mix_div;
 		//fprintf(stderr, "[R82XX] requested %uHz; selected mix_div=%u vco_freq=%lld nint=%u sdm=%u; actual_vco=%lld; xtal=%.1f, tuning error=%dHz\n",
 		//		freq, mix_div, vco_freq, nint, sdm, actual_vco, priv->cfg->xtal, tuning_error);
 		if(priv->sideband)
@@ -816,7 +823,6 @@ static int r82xx_set_pll(struct r82xx_priv *priv, uint32_t freq)
 			zf = priv->int_freq + tuning_error;
 		return rtlsdr_set_if_freq(priv->rtl_dev, zf);
 	}
-#endif
 	return 0;
 }
 
