@@ -347,7 +347,7 @@ int e4k_tune_freq(struct e4k_state *e4k, uint32_t freq)
 	 * This avoids X/Y = 0.  However, then we would overflow a 32bit
 	 * integer, as we cannot hold e.g. 26 MHz * 65536 either.
 	 */
-	fvco = fosc * z + (fosc * x) / E4K_PLL_Y;
+	fvco = fosc * z + (fosc * ((double)x + 0.5)) / E4K_PLL_Y;
 	if (fvco == 0)
 		return -EINVAL;
 
