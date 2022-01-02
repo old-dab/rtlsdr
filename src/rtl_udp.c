@@ -61,11 +61,6 @@ typedef int socklen_t;
 static SOCKET s;
 struct sockaddr_in remote;
 
-static pthread_t tcp_worker_thread;
-static pthread_t command_thread;
-static pthread_cond_t exit_cond;
-static pthread_mutex_t exit_cond_lock;
-
 static pthread_mutex_t ll_mutex;
 static pthread_cond_t cond;
 
@@ -324,7 +319,7 @@ static void *command_worker(void *arg)
 			break;
 		case SET_FREQUENCY_CORRECTION:
 			printf("set freq correction %d\n", (int)param);
-			rtlsdr_set_freq_correction(dev, (int)param*100);
+			rtlsdr_set_freq_correction(dev, (int)param);
 			break;
 		case SET_IF_STAGE:
 			printf("set if stage %d gain %d\n", param >> 16, (short)(param & 0xffff));
@@ -492,6 +487,8 @@ int main(int argc, char **argv)
 	u_long blockmode = 1;
 	dongle_info_t dongle_info;
 	int gains[100];
+	pthread_t tcp_worker_thread;
+	pthread_t command_thread;
 #ifdef _WIN32
 	WSADATA wsd;
 	i = WSAStartup(MAKEWORD(2,2), &wsd);
@@ -641,11 +638,8 @@ int main(int argc, char **argv)
 	if (r < 0)
 		fprintf(stderr, "WARNING: Failed to reset buffers.\n");
 
-	pthread_mutex_init(&exit_cond_lock, NULL);
 	pthread_mutex_init(&ll_mutex, NULL);
-	pthread_mutex_init(&exit_cond_lock, NULL);
 	pthread_cond_init(&cond, NULL);
-	pthread_cond_init(&exit_cond, NULL);
 
 	if (port_ir) {
 		struct ir_thread_data data = {.dev = dev, .port = port_ir, .wait = wait_ir, .addr = addr};
