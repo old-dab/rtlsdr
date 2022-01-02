@@ -71,11 +71,6 @@ static ctrl_thread_data_t ctrldata;
 
 static SOCKET s;
 
-static pthread_t tcp_worker_thread;
-static pthread_t command_thread;
-static pthread_cond_t exit_cond;
-static pthread_mutex_t exit_cond_lock;
-
 static pthread_mutex_t ll_mutex;
 static pthread_cond_t cond;
 
@@ -439,7 +434,7 @@ static void *command_worker(void *arg)
 			break;
 		case SET_FREQUENCY_CORRECTION://0x05
 			printf("set freq correction to %d ppm\n", (int)param);
-			rtlsdr_set_freq_correction(dev, (int)(param*100));
+			rtlsdr_set_freq_correction(dev, (int)param);
 			break;
 		case SET_IF_STAGE://0x06
 			printf("set if stage %d gain %d\n", param >> 16, (short)(param & 0xffff));
@@ -501,9 +496,9 @@ static void *command_worker(void *arg)
 			printf("%sable dithering\n", param ? "en" : "dis");
 			rtlsdr_set_dithering(dev, param);
 			break;
-		case SET_001_PPM://0x05
+		case SET_001_PPM://0x4a
 			printf("set freq correction to %0.2f ppm\n", (int)param/100.0);
-			rtlsdr_set_freq_correction(dev, (int)param);
+			rtlsdr_set_freq_correction_100ppm(dev, (int)param);
 			break;
 		default:
 			break;
@@ -593,7 +588,7 @@ int main(int argc, char **argv)
 	int offset_tuning = 0;
 	/* buf_len:
 	 * must be multiple of 512 - else it will be overwritten
-	 * in rtlsdr_read_async() in librtlsdr.c with DEFAULT_BUF_LENGTH (= 16*32 *512 = 512 *512)
+	 * in rtlsdr_read_async() in librtlsdr.c with DEFAULT_BUF_LENGTH (= 64*512)
 	 *
 	 * -> 512*512 -> 1048 ms @ 250 kS  or  81.92 ms @ 3.2 MS (internal default)
 	 * ->  32*512 ->   65 ms @ 250 kS  or   5.12 ms @ 3.2 MS (new default)
@@ -616,6 +611,8 @@ int main(int argc, char **argv)
 	int gains[100];
 	uint32_t bandwidth = 0;
 	int enable_biastee = 0;
+	pthread_t tcp_worker_thread;
+	pthread_t command_thread;
 #ifdef DEBUG
 	pthread_t thread_ir;
 	int port_ir = 0;
@@ -795,11 +792,8 @@ int main(int argc, char **argv)
 	/* Reset endpoint before we start reading from it (mandatory) */
 	verbose_reset_buffer(dev);
 
-	pthread_mutex_init(&exit_cond_lock, NULL);
 	pthread_mutex_init(&ll_mutex, NULL);
-	pthread_mutex_init(&exit_cond_lock, NULL);
 	pthread_cond_init(&cond, NULL);
-	pthread_cond_init(&exit_cond, NULL);
 #ifdef DEBUG
 	if(port_ir)
 		pthread_create(&thread_ir, NULL, &ir_thread_fn, NULL);
