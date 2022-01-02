@@ -821,7 +821,7 @@ static int r82xx_set_pll(struct r82xx_priv *priv, uint32_t freq)
 			zf = priv->int_freq - tuning_error;
 		else
 			zf = priv->int_freq + tuning_error;
-		return rtlsdr_set_if_freq(priv->rtl_dev, zf);
+		return rtlsdr_set_if_freq(priv->rtl_dev, zf+3);
 	}
 	return 0;
 }
