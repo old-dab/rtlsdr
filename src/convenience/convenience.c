@@ -281,7 +281,7 @@ int verbose_ppm_set(rtlsdr_dev_t *dev, float ppm_error)
 	int r;
 	if (ppm_error == 0) {
 		return 0;}
-	r = rtlsdr_set_freq_correction(dev, (int)(ppm_error*100.0));
+	r = rtlsdr_set_freq_correction_100ppm(dev, (int)(ppm_error*100.0));
 	if (r < 0) {
 		fprintf(stderr, "WARNING: Failed to set ppm error.\n");
 	} else {
