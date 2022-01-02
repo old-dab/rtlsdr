@@ -1301,7 +1301,7 @@ uint32_t rtlsdr_get_center_freq(rtlsdr_dev_t *dev)
 	return dev->freq;
 }
 
-int rtlsdr_set_freq_correction(rtlsdr_dev_t *dev, int ppm)
+int rtlsdr_set_freq_correction_100ppm(rtlsdr_dev_t *dev, int ppm)
 {
 	int r = 0;
 
@@ -1326,12 +1326,17 @@ int rtlsdr_set_freq_correction(rtlsdr_dev_t *dev, int ppm)
 	return r;
 }
 
+int rtlsdr_set_freq_correction(rtlsdr_dev_t *dev, int ppm)
+{
+	return rtlsdr_set_freq_correction_100ppm(dev, ppm * 100);
+}
+
 int rtlsdr_get_freq_correction(rtlsdr_dev_t *dev)
 {
 	if (!dev)
 		return 0;
 
-	return dev->corr;
+	return dev->corr / 100;
 }
 
 enum rtlsdr_tuner rtlsdr_get_tuner_type(rtlsdr_dev_t *dev)
