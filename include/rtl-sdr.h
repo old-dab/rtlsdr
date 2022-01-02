@@ -164,6 +164,15 @@ RTLSDR_API uint32_t rtlsdr_get_center_freq(rtlsdr_dev_t *dev);
 RTLSDR_API int rtlsdr_set_freq_correction(rtlsdr_dev_t *dev, int ppm);
 
 /*!
+ * Set the frequency correction value for the device.
+ *
+ * \param dev the device handle given by rtlsdr_open()
+ * \param ppm correction value in parts per 100 million (ppm)
+ * \return 0 on success
+ */
+RTLSDR_API int rtlsdr_set_freq_correction_100ppm(rtlsdr_dev_t *dev, int ppm);
+
+/*!
  * Get actual frequency correction value of the device.
  *
  * \param dev the device handle given by rtlsdr_open()
