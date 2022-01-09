@@ -1815,6 +1815,63 @@ int rtlsdr_get_device_usb_strings(uint32_t index, char *manufact,
 		strcpy(serial, found.serial);
 	return 0;
 }
+
+static int get_string_descriptor_ascii(rtlsdr_dev_t *dev, uint8_t index, char *data)
+{
+	ULONG LengthTransferred;
+	uint8_t buffer[255];
+	int i;
+	int di = 0;
+
+	if(!WinUsb_GetDescriptor(dev->devh, USB_STRING_DESCRIPTOR_TYPE, index, 0,
+						buffer, sizeof(buffer), &LengthTransferred))
+	{
+		fprintf(stderr,"WinUsb_GetDescriptor Failed. ErrorCode:%08lXh\n", GetLastError());
+		return -1;
+	}
+	for(i=2; i<buffer[0]; i+=2)
+		data[di++] = (char)buffer[i];
+	data[di] = 0;
+	return 0;
+}
+
+int rtlsdr_get_usb_strings(rtlsdr_dev_t *dev, char *manufact, char *product,
+							char *serial)
+{
+	int buf_max = 256;
+
+	if (!dev || !dev->devh)
+		return -1;
+
+	if (manufact) {
+		memset(manufact, 0, buf_max);
+		get_string_descriptor_ascii(dev, 1, manufact);
+	}
+
+	if (product) {
+		memset(product, 0, buf_max);
+		get_string_descriptor_ascii(dev, 2, product);
+	}
+
+	if (serial) {
+		ULONG LengthTransferred;
+		uint8_t buffer[32];
+
+		memset(serial, 0, buf_max);
+
+		if(!WinUsb_GetDescriptor(dev->devh, USB_DEVICE_DESCRIPTOR_TYPE, 0, 0,
+							buffer, sizeof(buffer), &LengthTransferred))
+		{
+			fprintf(stderr,"WinUsb_GetDescriptor Failed. ErrorCode:%08lXh\n", GetLastError());
+			return -1;
+		}
+		if(buffer[16] == 3)
+			get_string_descriptor_ascii(dev, 3, serial);
+	}
+
+	return 0;
+}
+
 #else
 uint32_t rtlsdr_get_device_count(void)
 {
