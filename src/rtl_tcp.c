@@ -593,7 +593,7 @@ int main(int argc, char **argv)
 	 * -> 512*512 -> 1048 ms @ 250 kS  or  81.92 ms @ 3.2 MS (internal default)
 	 * ->  32*512 ->   65 ms @ 250 kS  or   5.12 ms @ 3.2 MS (new default)
 	 */
-	uint32_t buf_len = 64 * 512;
+	uint32_t buf_len = 256 * 512;
 	int dev_index = 0;
 	int dev_given = 0;
 	int gain = 0;
