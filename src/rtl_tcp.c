@@ -910,14 +910,14 @@ int main(int argc, char **argv)
 	}
 
 out:
-	if(dev)
-		rtlsdr_close(dev);
 	closesocket(listensocket);
 	if ( port_resp ) {
 		do_exit_thrd_ctrl = 1;
 		ctrldata.pDoExit = &do_exit_thrd_ctrl;
 		pthread_join(thread_ctrl, &status);
 	}
+	if(dev)
+		rtlsdr_close(dev);
 	closesocket(s);
 #ifdef _WIN32
 	WSACleanup();
