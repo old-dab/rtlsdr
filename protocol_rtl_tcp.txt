@@ -59,22 +59,13 @@ by default, on the next port as the command protocol.
 Thus, by default on port 1235.
 
 
-Each response from rtl_tcp to the client consists of 4 fields:
-
-1- command_id: references the command, which generated this response.
-  It's value is also the enum RTL_TCP_COMMANDS, defined in rtl_tcp.h.
-  This element is an unsigned character, starting at offset 0
-  with length: 1 byte.
-
-2- length_of_content: defines the number of bytes following this field at offset 3.
-  The length is necessary to allow responses with different lengths.
-  This element is an unsigned 16 bit integer, starting at offset 3
-  with length: 2 bytes. 0 is interpreted as 65536!
-  It is strongly recommended to limit the response to 32768 bytes in total.
-
-3- content: the content is command specific and might contain up to 65536 bytes.
-  The content starts at offset 3.
+The first two bytes of the response contain the complete length of the buffer sent.
+This is followed by any number of messages with the following structure:
+- 1 byte indication: The counterpart to the command, it shows what is being reported
+- 2 byte length of the indication payload.
+- n byte indication payload
 
 All fields are in Network Byte Order (Big Endian).
-Size of one response is (3 + length_of_content), without padding.
-
+Indications:
+  0x00 = gain indication.
+  0x48 = report i2c registers

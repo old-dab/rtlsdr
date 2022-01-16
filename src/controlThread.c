@@ -57,7 +57,7 @@ typedef int socklen_t;
 #endif
 
 #define MAX_I2C_REGISTERS  256
-#define TX_BUF_LEN (5+MAX_I2C_REGISTERS) //1 command, 2 tuner_gain, 2 len
+#define TX_BUF_LEN (15+MAX_I2C_REGISTERS) //1 command, 2 tuner_gain, 2 len
 
 ctrl_thread_data_t ctrl_thread_data;
 
@@ -74,7 +74,7 @@ void *ctrl_thread_fn(void *arg)
 	struct sockaddr_in local, remote;
 	socklen_t rlen;
 
-	int len, result, tuner_gain;
+	int result, tuner_gain, txlen, reglen;
 	fd_set connfds;
 	fd_set writefds;
 	int bytesleft, bytessent, index;
@@ -132,7 +132,7 @@ void *ctrl_thread_fn(void *arg)
 				haveControlSocket = 1;
 				break;
 			}
-			result = rtlsdr_get_tuner_i2c_register(dev, reg_values, &len, &tuner_gain);
+			result = rtlsdr_get_tuner_i2c_register(dev, reg_values, &reglen, &tuner_gain);
 			tuner_gain = (tuner_gain + 5) / 10;
 			if(old_gain != tuner_gain)
 			{
@@ -144,6 +144,7 @@ void *ctrl_thread_fn(void *arg)
 		setsockopt(controlSocket, SOL_SOCKET, SO_LINGER, (char *)&ling, sizeof(ling));
 
 		printf("Control client accepted!\n");
+		usleep(500000);
 
 		while (1) {
 
@@ -157,25 +158,42 @@ void *ctrl_thread_fn(void *arg)
 			if ( !report_i2c )
 				goto sleep;
 
-			len = 0;
-			result = rtlsdr_get_tuner_i2c_register(dev, reg_values, &len, &tuner_gain);
+			reglen = 0;
+			result = rtlsdr_get_tuner_i2c_register(dev, reg_values, &reglen, &tuner_gain);
 			memset(txbuf, 0, TX_BUF_LEN);
 			if (result)
 				goto sleep;
 
 			//Big Endian / Network Byte Order
-			txbuf[0] = REPORT_I2C_REGS;
-			txbuf[1] = ((len+2) >> 8) & 0xff;
-			txbuf[2] = (len+2) & 0xff;
-			txbuf[3] = (tuner_gain >> 8) & 0xff;
-			txbuf[4] = tuner_gain & 0xff;
-			/* now the message contents */
-			memcpy(&txbuf[5], reg_values, len);
-			len += 5;
+            txlen = 2; // For the first two bytes
+            // "gain" indication
+            txbuf[2] = 0;
+            // "gain" length
+            txbuf[3] = 0;
+            txbuf[4] = 2;
+            // "gain" value
+            txbuf[5] = (tuner_gain >> 8) & 0xff;
+            txbuf[6] = tuner_gain & 0xff;
+            txlen += 5;
+
+            // "register" indication
+            txbuf[7] = REPORT_I2C_REGS;
+
+            // "register" length
+            txbuf[8] = ((reglen) >> 8) & 0xff;
+            txbuf[9] = reglen & 0xff;
+
+            // register values
+            memcpy(&txbuf[10], reg_values, reglen);
+            txlen += reglen+3;
+
+            // total length of the sent buffer
+            txbuf[0] = (txlen >> 8) & 0xff;
+            txbuf[1] = txlen & 0xff;
 
 			/* now start (possibly blocking) transmission */
 			bytessent = 0;
-			bytesleft = len;
+			bytesleft = txlen;
 			index = 0;
 			while (bytesleft > 0) {
 				FD_ZERO(&writefds);
