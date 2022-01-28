@@ -57,7 +57,7 @@ typedef int socklen_t;
 #endif
 
 #define MAX_I2C_REGISTERS  256
-#define TX_BUF_LEN (15+MAX_I2C_REGISTERS) //1 command, 2 tuner_gain, 2 len
+#define TX_BUF_LEN (10+MAX_I2C_REGISTERS)
 
 ctrl_thread_data_t ctrl_thread_data;
 
@@ -144,7 +144,7 @@ void *ctrl_thread_fn(void *arg)
 		setsockopt(controlSocket, SOL_SOCKET, SO_LINGER, (char *)&ling, sizeof(ling));
 
 		printf("Control client accepted!\n");
-		usleep(500000);
+		//usleep(500000);
 
 		while (1) {
 
