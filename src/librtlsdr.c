@@ -2997,6 +2997,30 @@ int rtlsdr_set_bias_tee(rtlsdr_dev_t *dev, int on)
 		return rtlsdr_set_bias_tee_gpio(dev, 0, on);
 }
 
+const char * rtlsdr_get_opt_help(int longInfo)
+{
+	if ( longInfo )
+		return
+		"\t[-O\tset RTL driver options seperated with ':', e.g. -O 'bw=1500:agc=0' ]\n"
+		"\t\tf=<freqHz>            set tuner frequency\n"
+		"\t\tbw=<bw_in_kHz>        set tuner bandwidth\n"
+		"\t\tsb=<sideband>         set tuner sideband/mirror: '0' for lower side band,\n"
+		"\t\t                        '1' for upper side band. default for R820T/2: '0'\n"
+		"\t\tagc=<tuner_gain_mode> activates tuner agc with '1'. deactivates with '0'\n"
+		"\t\tgain=<tenth_dB>       set tuner gain. 400 for 40.0 dB\n"
+		"\t\tdagc=<rtl_agc>        set RTL2832's digital agc (after ADC). 1 to activate. 0 to deactivate\n"
+		"\t\tds=<direct_sampling>  deactivate/bypass tuner with 1\n"
+		"\t\tT=<bias_tee>          1 activates power at antenna one some dongles, e.g. rtl-sdr.com's V3\n"
+		;
+	else
+		return
+		"\t[-O\tset RTL options string seperated with ':', e.g. -O 'bw=1500:agc=0' ]\n"
+		"\t\tverbose:f=<freqHz>:bw=<bw_in_kHz>:sb=<sideband>\n"
+		"\t\tagc=<tuner_gain_mode>:gain=<tenth_dB>:dagc=<rtl_agc>\n"
+		"\t\tds=<direct_sampling_mode>:T=<bias_tee>\n"
+		;
+}
+
 int rtlsdr_set_opt_string(rtlsdr_dev_t *dev, const char *opts, int verbose)
 {
 	char * optStr, * optPart;
