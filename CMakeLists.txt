@@ -137,6 +137,14 @@ else (ENABLE_ZEROCOPY)
 endif (ENABLE_ZEROCOPY)
 
 ########################################################################
+# Install public header files
+########################################################################
+install(FILES
+    include/rtl-sdr.h
+    include/rtl-sdr_export.h
+    DESTINATION include
+)
+########################################################################
 # Add subdirectories
 ########################################################################
 add_subdirectory(src)
