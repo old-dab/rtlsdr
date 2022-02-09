@@ -157,7 +157,7 @@ void usage(void)
 		"\t[-d device index or serial (default: 0)]\n"
 		"\t[-f frequency to tune to [Hz]]\n"
 		"\t[-g gain in dB (default: 0 for auto)]\n"
-		"\t[-l length of single buffer in units of 512 samples (default: 64)]\n"
+		"\t[-l length of single buffer in units of 512 samples (default: 256)]\n"
 		"\t[-n max number of linked list buffers to keep (default: 500)]\n"
 		"\t[-o set offset tuning\n"
 		"\t[-p listen port (default: 1234)]\n"
@@ -361,7 +361,7 @@ static int set_gain_by_index(rtlsdr_dev_t *_dev, unsigned int index)
 
 		res = rtlsdr_set_tuner_gain(_dev, gains[index]);
 		if (verbosity)
-			fprintf(stderr, "set tuner gain to %.1f dB\n", gains[index] / 10.0);
+			printf("set tuner gain to %.1f dB\n", gains[index] / 10.0);
 
 		free(gains);
 	}
@@ -714,7 +714,7 @@ int main(int argc, char **argv)
 		usage();
 
 	if (verbosity)
-		fprintf(stderr, "verbosity set to %d\n", verbosity);
+		printf("verbosity set to %d\n", verbosity);
 
 	if (!dev_given) {
 		dev_index = verbose_device_search("0");
@@ -760,7 +760,7 @@ int main(int argc, char **argv)
 	if (r < 0)
 		fprintf(stderr, "WARNING: Failed to set center freq.\n");
 	else
-		fprintf(stderr, "Tuned to %i Hz.\n", frequency);
+		printf("Tuned to %i Hz.\n", frequency);
 
 	if (gain == 0) {
 		// Enable automatic gain
@@ -777,7 +777,7 @@ int main(int argc, char **argv)
 	if(sideband)
 	{
 		rtlsdr_set_tuner_sideband(dev, sideband);
-		fprintf(stderr, "Set to upper sideband\n");
+		printf("Set to upper sideband\n");
 	}
 	verbose_set_bandwidth(dev, bandwidth);
 	if(offset_tuning)
@@ -787,7 +787,7 @@ int main(int argc, char **argv)
 	}
 	rtlsdr_set_bias_tee(dev, enable_biastee);
 	if (enable_biastee)
-		fprintf(stderr, "activated bias-T on GPIO PIN 0\n");
+		printf("activated bias-T on GPIO PIN 0\n");
 
 	/* Reset endpoint before we start reading from it (mandatory) */
 	verbose_reset_buffer(dev);
@@ -809,7 +809,7 @@ int main(int argc, char **argv)
 	if( port_resp )
 	{
 		if ( port_resp != (port+1))
-			fprintf(stderr, "activating response channel on port %d with %s I2C reporting\n",
+			printf("activating response channel on port %d with %s I2C reporting\n",
 					port_resp, (report_i2c ? "active" : "inactive") );
 		pthread_create(&thread_ctrl, NULL, &ctrl_thread_fn, &ctrldata);
 	}
@@ -871,10 +871,10 @@ int main(int argc, char **argv)
 			dongle_info.tuner_gain_count = htonl(r);
 		if (verbosity)
 		{
-			fprintf(stderr, "Supported gain values (%d): ", r);
+			printf("Supported gain values (%d): ", r);
 			for (i = 0; i < r; i++)
-				fprintf(stderr, "%.1f ", gains[i] / 10.0);
-			fprintf(stderr, "\n");
+				printf("%.1f ", gains[i] / 10.0);
+			printf("\n");
 		}
 
 		r = send(s, (const char *)&dongle_info, sizeof(dongle_info), 0);

@@ -268,7 +268,7 @@ int main(int argc, char **argv)
 	verbose_reset_buffer(dev);
 
 	if (sync_mode) {
-		fprintf(stderr, "Reading samples in sync mode...\n");
+		printf("Reading samples in sync mode...\n");
 		while (!do_exit) {
 			r = rtlsdr_read_sync(dev, buffer, out_block_size, &n_read);
 			if (r < 0) {
@@ -296,7 +296,7 @@ int main(int argc, char **argv)
 				bytes_to_read -= n_read;
 		}
 	} else {
-		fprintf(stderr, "Reading samples in async mode...\n");
+		printf("Reading samples in async mode...\n");
 		r = rtlsdr_read_async(dev, rtlsdr_callback, (void *)file,
 				      0, out_block_size);
 	}

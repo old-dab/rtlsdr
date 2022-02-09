@@ -49,19 +49,19 @@ typedef struct rtlsdr_config {
 
 void dump_config(rtlsdr_config_t *conf)
 {
-	fprintf(stderr, "__________________________________________\n");
-	fprintf(stderr, "Vendor ID:\t\t0x%04x\n", conf->vendor_id);
-	fprintf(stderr, "Product ID:\t\t0x%04x\n", conf->product_id);
-	fprintf(stderr, "Manufacturer:\t\t%s\n", conf->manufacturer);
-	fprintf(stderr, "Product:\t\t%s\n", conf->product);
-	fprintf(stderr, "Serial number:\t\t%s\n", conf->serial);
-	fprintf(stderr, "Serial number enabled:\t");
-	fprintf(stderr, conf->have_serial ? "yes\n": "no\n");
-	fprintf(stderr, "IR endpoint enabled:\t");
-	fprintf(stderr, conf->enable_ir ? "yes\n": "no\n");
-	fprintf(stderr, "Remote wakeup enabled:\t");
-	fprintf(stderr, conf->remote_wakeup ? "yes\n": "no\n");
-	fprintf(stderr, "__________________________________________\n");
+	printf("__________________________________________\n");
+	printf("Vendor ID:\t\t0x%04x\n", conf->vendor_id);
+	printf("Product ID:\t\t0x%04x\n", conf->product_id);
+	printf("Manufacturer:\t\t%s\n", conf->manufacturer);
+	printf("Product:\t\t%s\n", conf->product);
+	printf("Serial number:\t\t%s\n", conf->serial);
+	printf("Serial number enabled:\t");
+	printf(conf->have_serial ? "yes\n": "no\n");
+	printf("IR endpoint enabled:\t");
+	printf(conf->enable_ir ? "yes\n": "no\n");
+	printf("Remote wakeup enabled:\t");
+	printf(conf->remote_wakeup ? "yes\n": "no\n");
+	printf("__________________________________________\n");
 }
 
 void usage(void)
@@ -193,7 +193,7 @@ void gen_default_conf(rtlsdr_config_t *conf, int config)
 {
 	switch (config) {
 	case REALTEK:
-		fprintf(stderr, "Realtek default (as without EEPROM)\n");
+		printf("Realtek default (as without EEPROM)\n");
 		conf->vendor_id = 0x0bda;
 		conf->product_id = 0x2832;
 		strcpy(conf->manufacturer, "Generic");
@@ -204,7 +204,7 @@ void gen_default_conf(rtlsdr_config_t *conf, int config)
 		conf->remote_wakeup = 1;
 		break;
 	case REALTEK_EEPROM:
-		fprintf(stderr, "Realtek default OEM with EEPROM\n");
+		printf("Realtek default OEM with EEPROM\n");
 		conf->vendor_id = 0x0bda;
 		conf->product_id = 0x2838;
 		strcpy(conf->manufacturer, "Realtek");
@@ -215,7 +215,7 @@ void gen_default_conf(rtlsdr_config_t *conf, int config)
 		conf->remote_wakeup = 0;
 		break;
 	case TERRATEC_NOXON:
-		fprintf(stderr, "Terratec NOXON DAB Stick\n");
+		printf("Terratec NOXON DAB Stick\n");
 		conf->vendor_id = 0x0ccd;
 		conf->product_id = 0x00b3;
 		strcpy(conf->manufacturer, "NOXON");
@@ -226,7 +226,7 @@ void gen_default_conf(rtlsdr_config_t *conf, int config)
 		conf->remote_wakeup = 1;
 		break;
 	case TERRATEC_T_BLACK:
-		fprintf(stderr, "Terratec T Stick Black\n");
+		printf("Terratec T Stick Black\n");
 		conf->vendor_id = 0x0ccd;
 		conf->product_id = 0x00a9;
 		strcpy(conf->manufacturer, "Realtek");
@@ -237,7 +237,7 @@ void gen_default_conf(rtlsdr_config_t *conf, int config)
 		conf->remote_wakeup = 0;
 		break;
 	case TERRATEC_T_PLUS:
-		fprintf(stderr, "Terratec ran T Stick+\n");
+		printf("Terratec ran T Stick+\n");
 		conf->vendor_id = 0x0ccd;
 		conf->product_id = 0x00d7;
 		strcpy(conf->manufacturer, "Realtek");
@@ -248,7 +248,7 @@ void gen_default_conf(rtlsdr_config_t *conf, int config)
 		conf->remote_wakeup = 0;
 		break;
 	case REALTEK_SDR:
-		fprintf(stderr, "Realtek SDR\n");
+		printf("Realtek SDR\n");
 		conf->vendor_id = 0x1209;
 		conf->product_id = 0x2832;
 		strcpy(conf->manufacturer, "Realtek");
@@ -353,10 +353,10 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	fprintf(stderr, "Found %d device(s):\n", device_count);
+	printf("Found %d device(s):\n", device_count);
 	for (i = 0; i < device_count; i++)
-		fprintf(stderr, "  %d:  %s\n", i, rtlsdr_get_device_name(i));
-	fprintf(stderr, "\n");
+		printf("  %d:  %s\n", i, rtlsdr_get_device_name(i));
+	printf("\n");
 
 	if(dev_index >= device_count)
 	{
@@ -364,7 +364,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	fprintf(stderr, "Using device %d: %s\n",
+	printf("Using device %d: %s\n",
 		dev_index,
 		rtlsdr_get_device_name(dev_index));
 
@@ -374,7 +374,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	fprintf(stderr, "\n");
+	printf("\n");
 
 	r = rtlsdr_read_eeprom(dev, buf, 0, EEPROM_SIZE);
 	if (r < 0) {
@@ -385,7 +385,7 @@ int main(int argc, char **argv)
 		goto exit;
 	}
 
-	fprintf(stderr, "Current configuration:\n");
+	printf("Current configuration:\n");
 	parse_eeprom_to_conf(&conf, buf);
 	dump_config(&conf);
 
@@ -402,7 +402,7 @@ int main(int argc, char **argv)
 			if (fwrite(buf, 1, sizeof(buf), file) != sizeof(buf))
 				fprintf(stderr, "Short write, exiting!\n");
 			else
-				fprintf(stderr, "\nDump to %s successful.\n", filename);
+				printf("\nDump to %s successful.\n", filename);
 		}
 	}
 
@@ -429,7 +429,7 @@ int main(int argc, char **argv)
 	if (!change)
 		goto exit;
 
-	fprintf(stderr, "\nNew configuration:\n");
+	printf("\nNew configuration:\n");
 
 	if (default_config != CONF_NONE)
 		gen_default_conf(&conf, default_config);
@@ -442,7 +442,7 @@ int main(int argc, char **argv)
 	parse_eeprom_to_conf(&conf, buf);
 	dump_config(&conf);
 
-	fprintf(stderr, "Write new configuration to device [y/n]? ");
+	printf("Write new configuration to device [y/n]? ");
 
 	while ((ch = getchar())) {
 		if (ch != 'y')
@@ -455,7 +455,7 @@ int main(int argc, char **argv)
 	if (r < 0)
 		fprintf(stderr, "Error while writing EEPROM: %i\n", r);
 	else
-		fprintf(stderr, "\nConfiguration successfully written.\n"
+		printf("\nConfiguration successfully written.\n"
 				"Please replug the device for changes"
 				" to take effect.\n");
 

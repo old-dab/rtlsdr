@@ -137,7 +137,7 @@ struct rtlsdr_dev {
 	uint32_t freq; /* Hz */
 	uint32_t bw;
 	uint32_t offs_freq; /* Hz */
-	int corr; /* ppm */
+	int corr; /* 1/100 ppm */
 	int gain; /* tenth dB */
 	enum rtlsdr_ds_mode direct_sampling_mode;
 	uint32_t direct_sampling_threshold; /* Hz */
@@ -1156,7 +1156,7 @@ static inline int rtlsdr_set_spectrum_inversion(rtlsdr_dev_t *dev, int sideband)
 static int rtlsdr_set_sample_freq_correction(rtlsdr_dev_t *dev, int ppm)
 {
 	int r = 0;
-	int16_t offs = ppm * (-1) * TWO_POW(24) / 100000000;
+	int16_t offs = (int64_t)ppm * (-1) * TWO_POW(24) / 100000000;
 
 	r |= rtlsdr_demod_write_reg(dev, 1, 0x3e, (offs >> 8) & 0x3f, 1);
 	r |= rtlsdr_demod_write_reg(dev, 1, 0x3f, offs & 0xff, 1);
@@ -1562,7 +1562,7 @@ int rtlsdr_set_sample_rate(rtlsdr_dev_t *dev, uint32_t samp_rate)
 	real_rate = (dev->rtl_xtal * TWO_POW(22)) / real_rsamp_ratio;
 
 	if ( ((double)samp_rate) != real_rate )
-		fprintf(stderr, "Exact sample rate is: %f Hz\n", real_rate);
+		printf("Exact sample rate is: %f Hz\n", real_rate);
 
 	dev->rate = (uint32_t)real_rate;
 
@@ -1631,7 +1631,7 @@ int rtlsdr_set_direct_sampling(rtlsdr_dev_t *dev, int on)
 		/* swap I and Q ADC, this allows to select between two inputs */
 		r |= rtlsdr_demod_write_reg(dev, 0, 0x06, (on > 1) ? 0x90 : 0x80, 1);
 
-		fprintf(stderr, "Enabled direct sampling mode, input %i\n", on);
+		printf("Enabled direct sampling mode, input %i\n", on);
 		dev->direct_sampling = on;
 	} else {
 		if (dev->tuner && dev->tuner->init) {
@@ -1659,7 +1659,7 @@ int rtlsdr_set_direct_sampling(rtlsdr_dev_t *dev, int on)
 		/* opt_adc_iq = 0, default ADC_I/ADC_Q datapath */
 		//r |= rtlsdr_demod_write_reg(dev, 0, 0x06, 0x80, 1);
 
-		fprintf(stderr, "Disabled direct sampling mode\n");
+		printf("Disabled direct sampling mode\n");
 		dev->direct_sampling = 0;
 	}
 
@@ -1882,9 +1882,6 @@ uint32_t rtlsdr_get_device_count(void)
 	struct libusb_device_descriptor dd;
 	ssize_t cnt;
 
-	//const struct libusb_version* version = libusb_get_version();
-	//printf("Using libusb v%d.%d.%d.%d\n", version->major, version->minor, version->micro, version->nano);
-
 	if(libusb_init(&ctx) < 0)
 		return 0;
 
@@ -2105,7 +2102,7 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 
 #ifdef DETACH_KERNEL_DRIVER
 		if (!libusb_detach_kernel_driver(dev->devh, 0)) {
-			fprintf(stderr, "Detached kernel driver\n");
+			printf("Detached kernel driver\n");
 		} else {
 			fprintf(stderr, "Detaching kernel driver failed!");
 			goto err;
@@ -2144,28 +2141,28 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 
 	reg = check_tuner(dev, E4K_I2C_ADDR, E4K_CHECK_ADDR);
 	if (reg == E4K_CHECK_VAL) {
-		fprintf(stderr, "Found Elonics E4000 tuner\n");
+		printf("Found Elonics E4000 tuner\n");
 		dev->tuner_type = RTLSDR_TUNER_E4000;
 		goto found;
 	}
 
 	reg = check_tuner(dev, FC001X_I2C_ADDR, FC001X_CHECK_ADDR);
 	if (reg == FC0013_CHECK_VAL) {
-		fprintf(stderr, "Found Fitipower FC0013 tuner\n");
+		printf("Found Fitipower FC0013 tuner\n");
 		dev->tuner_type = RTLSDR_TUNER_FC0013;
 		goto found;
 	}
 
 	reg = check_tuner(dev, R820T_I2C_ADDR, R82XX_CHECK_ADDR);
 	if (reg == R82XX_CHECK_VAL) {
-		fprintf(stderr, "Found Rafael Micro R820T tuner\n");
+		printf("Found Rafael Micro R820T tuner\n");
 		dev->tuner_type = RTLSDR_TUNER_R820T;
 		goto found;
 	}
 
 	reg = check_tuner(dev, R828D_I2C_ADDR, R82XX_CHECK_ADDR);
 	if (reg == R82XX_CHECK_VAL) {
-		fprintf(stderr, "Found Rafael Micro R828D tuner\n");
+		printf("Found Rafael Micro R828D tuner\n");
 		dev->tuner_type = RTLSDR_TUNER_R828D;
 		goto found;
 	}
@@ -2179,14 +2176,14 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 
 	reg = check_tuner(dev, FC2580_I2C_ADDR, FC2580_CHECK_ADDR);
 	if ((reg & 0x7f) == FC2580_CHECK_VAL) {
-		fprintf(stderr, "Found FCI 2580 tuner\n");
+		printf("Found FCI 2580 tuner\n");
 		dev->tuner_type = RTLSDR_TUNER_FC2580;
 		goto found;
 	}
 
 	reg = check_tuner(dev, FC001X_I2C_ADDR, FC001X_CHECK_ADDR);
 	if (reg == FC0012_CHECK_VAL) {
-		fprintf(stderr, "Found Fitipower FC0012 tuner\n");
+		printf("Found Fitipower FC0012 tuner\n");
 		rtlsdr_set_gpio_output(dev, 6);
 		dev->tuner_type = RTLSDR_TUNER_FC0012;
 	}
@@ -2270,27 +2267,27 @@ found:
 		reg = check_tuner(dev, MN8847X_I2C_ADDR, MN8847X_CHECK_ADDR);
 		if (reg == MN88472_CHIP_ID)
 		{
-			fprintf(stderr, "Found Panasonic MN88472 demod\n");
+			printf("Found Panasonic MN88472 demod\n");
 			dev->slave_demod = SLAVE_DEMOD_MN88472;
 			goto demod_found;
 		}
 		if (reg == MN88473_CHIP_ID)
 		{
-			fprintf(stderr, "Found Panasonic MN88473 demod\n");
+			printf("Found Panasonic MN88473 demod\n");
 			dev->slave_demod = SLAVE_DEMOD_MN88473;
 			goto demod_found;
 		}
 		reg = check_tuner(dev, CXD2837_I2C_ADDR, CXD2837_CHECK_ADDR);
 		if (reg == CXD2837ER_CHIP_ID)
 		{
-			fprintf(stderr, "Found Sony CXD2837ER demod\n");
+			printf("Found Sony CXD2837ER demod\n");
 			dev->slave_demod = SLAVE_DEMOD_CXD2837ER;
 			goto demod_found;
 		}
 		reg = check_tuner(dev, SI2168_I2C_ADDR, SI2168_CHECK_ADDR);
 		if (reg == SI2168_CHIP_ID)
 		{
-			fprintf(stderr, "Found Silicon Labs SI2168 demod\n");
+			printf("Found Silicon Labs SI2168 demod\n");
 			dev->slave_demod = SLAVE_DEMOD_SI2168;
 		}
 
@@ -2393,7 +2390,7 @@ int rtlsdr_close(rtlsdr_dev_t *dev)
 #ifdef DETACH_KERNEL_DRIVER
 	if (dev->driver_active) {
 		if (!libusb_attach_kernel_driver(dev->devh, 0))
-			fprintf(stderr, "Reattached kernel driver\n");
+			printf("Reattached kernel driver\n");
 		else
 			fprintf(stderr, "Reattaching kernel driver failed!\n");
 	}
@@ -2516,7 +2513,6 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 		{
 			DWORD NumberOfBytesTransferred = 0;
 			// Wait for the operation to complete before continuing.
-			// You could do some background work if you wanted to.
 			if (WinUsb_GetOverlappedResult(dev->devh, overlapped[i],
 				                           &NumberOfBytesTransferred, TRUE))
 	    	{
@@ -2533,6 +2529,7 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 				break;
 		}
 	}
+	//Sleep((int)((int64_t)buf_num * buf_len * 500 / dev->rate)); //Duration of buf_num blocks
 
 	// Stop transfers
 	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x1002, 2);
@@ -2627,7 +2624,7 @@ static int _rtlsdr_alloc_async_buffers(rtlsdr_dev_t *dev)
 	memset(dev->xfer_buf, 0, dev->xfer_buf_num * sizeof(unsigned char *));
 
 #if defined (__linux__) && LIBUSB_API_VERSION >= 0x01000105
-	fprintf(stderr, "Allocating %d zero-copy buffers\n", dev->xfer_buf_num);
+	printf("Allocating %d zero-copy buffers\n", dev->xfer_buf_num);
 
 	dev->use_zerocopy = 1;
 	for (i = 0; i < dev->xfer_buf_num; ++i) {
@@ -2904,7 +2901,7 @@ int rtlsdr_ir_query(rtlsdr_dev_t *d, uint8_t *buf, size_t buf_len)
 
 	/* init remote controller */
 	if (!d->rc_active) {
-		//fprintf(stderr, "initializing remote controller\n");
+		//printf("initializing remote controller\n");
 		for (i = 0; i < ARRAY_SIZE(init_tab); i++) {
 			ret = rtlsdr_write_reg_mask(d, init_tab[i].block, init_tab[i].reg,
 					init_tab[i].val, init_tab[i].mask);
@@ -2915,7 +2912,7 @@ int rtlsdr_ir_query(rtlsdr_dev_t *d, uint8_t *buf, size_t buf_len)
 			}
 		}
 		d->rc_active = 1;
-		//fprintf(stderr, "rc active\n");
+		//printf("rc active\n");
 	}
 	// TODO: option to ir disable
 
@@ -3001,7 +2998,7 @@ const char * rtlsdr_get_opt_help(int longInfo)
 {
 	if ( longInfo )
 		return
-		"\t[-O\tset RTL driver options seperated with ':', e.g. -O 'bw=1500:agc=0' ]\n"
+		"\t[-O\tset RTL driver options separated with ':', e.g. -O 'bw=1500:agc=0' ]\n"
 		"\t\tf=<freqHz>            set tuner frequency\n"
 		"\t\tbw=<bw_in_kHz>        set tuner bandwidth\n"
 		"\t\tsb=<sideband>         set tuner sideband/mirror: '0' for lower side band,\n"
@@ -3014,7 +3011,7 @@ const char * rtlsdr_get_opt_help(int longInfo)
 		;
 	else
 		return
-		"\t[-O\tset RTL options string seperated with ':', e.g. -O 'bw=1500:agc=0' ]\n"
+		"\t[-O\tset RTL options string separated with ':', e.g. -O 'bw=1500:agc=0' ]\n"
 		"\t\tverbose:f=<freqHz>:bw=<bw_in_kHz>:sb=<sideband>\n"
 		"\t\tagc=<tuner_gain_mode>:gain=<tenth_dB>:dagc=<rtl_agc>\n"
 		"\t\tds=<direct_sampling_mode>:T=<bias_tee>\n"
@@ -3038,49 +3035,49 @@ int rtlsdr_set_opt_string(rtlsdr_dev_t *dev, const char *opts, int verbose)
 	{
 		int ret = 0;
 		if (!strcmp(optPart, "verbose")) {
-			fprintf(stderr, "\nrtlsdr_set_opt_string(): parsed option verbose\n");
+			printf("\nrtlsdr_set_opt_string(): parsed option verbose\n");
 			dev->verbose = 1;
 		}
 		else if (!strncmp(optPart, "f=", 2)) {
 			uint32_t freq = (uint32_t)atol(optPart + 2);
 			if (verbose)
-				fprintf(stderr, "rtlsdr_set_opt_string(): parsed frequency %u\n", (unsigned)freq);
+				printf("rtlsdr_set_opt_string(): parsed frequency %u\n", (unsigned)freq);
 			ret = rtlsdr_set_center_freq(dev, freq);
 		}
 		else if (!strncmp(optPart, "bw=", 3)) {
 			uint32_t bw = (uint32_t)( atol(optPart +3) * 1000 );
 			if (verbose)
-				fprintf(stderr, "rtlsdr_set_opt_string(): parsed bandwidth %u\n", (unsigned)bw);
+				printf("rtlsdr_set_opt_string(): parsed bandwidth %u\n", (unsigned)bw);
 			ret = rtlsdr_set_tuner_bandwidth(dev, bw);
 		}
 		else if (!strncmp(optPart, "agc=", 4)) {
 			int manual = 1 - atoi(optPart +4);	// invert logic
 			if (verbose)
-				fprintf(stderr, "rtlsdr_set_opt_string(): parsed tuner gain mode, manual=%d\n", manual);
+				printf("rtlsdr_set_opt_string(): parsed tuner gain mode, manual=%d\n", manual);
 			ret = rtlsdr_set_tuner_gain_mode(dev, manual);
 		}
 		else if (!strncmp(optPart, "gain=", 5)) {
 			int gain = atoi(optPart +5);
 			if (verbose)
-				fprintf(stderr, "rtlsdr_set_opt_string(): parsed tuner gain = %d /10 dB\n", gain);
+				printf("rtlsdr_set_opt_string(): parsed tuner gain = %d /10 dB\n", gain);
 			ret = rtlsdr_set_tuner_gain(dev, gain);
 		}
 		else if (!strncmp(optPart, "dagc=", 5)) {
 			int on = atoi(optPart +5);
 			if (verbose)
-				fprintf(stderr, "rtlsdr_set_opt_string(): parsed rtl/digital gain mode %d\n", on);
+				printf("rtlsdr_set_opt_string(): parsed rtl/digital gain mode %d\n", on);
 			ret = rtlsdr_set_agc_mode(dev, on);
 		}
 		else if (!strncmp(optPart, "ds=", 3)) {
 			int on = atoi(optPart +3);
 			if (verbose)
-				fprintf(stderr, "rtlsdr_set_opt_string(): parsed direct sampling mode %d\n", on);
+				printf("rtlsdr_set_opt_string(): parsed direct sampling mode %d\n", on);
 			ret = rtlsdr_set_direct_sampling(dev, on);
 		}
 		else if (!strncmp(optPart, "t=", 2) || !strncmp(optPart, "T=", 2)) {
 			int on = atoi(optPart +2);
 			if (verbose)
-				fprintf(stderr, "rtlsdr_set_opt_string(): parsed bias tee %d\n", on);
+				printf("rtlsdr_set_opt_string(): parsed bias tee %d\n", on);
 			ret = rtlsdr_set_bias_tee(dev, on);
 		}
 		else {

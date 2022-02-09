@@ -521,15 +521,15 @@ void frequency_range(char *arg, double crop)
 		ts->buf_len = buf_len;
 	}
 	/* report */
-	fprintf(stderr, "Number of frequency hops: %i\n", tune_count);
-	fprintf(stderr, "Dongle bandwidth: %iHz\n", bw_used);
-	fprintf(stderr, "Downsampling by: %ix\n", downsample);
-	fprintf(stderr, "Cropping by: %0.2f%%\n", crop*100);
-	fprintf(stderr, "Total FFT bins: %i\n", tune_count * (1<<bin_e));
-	fprintf(stderr, "Logged FFT bins: %i\n", \
+	printf("Number of frequency hops: %i\n", tune_count);
+	printf("Dongle bandwidth: %iHz\n", bw_used);
+	printf("Downsampling by: %ix\n", downsample);
+	printf("Cropping by: %0.2f%%\n", crop*100);
+	printf("Total FFT bins: %i\n", tune_count * (1<<bin_e));
+	printf("Logged FFT bins: %i\n", \
 	  (int)((double)(tune_count * (1<<bin_e)) * (1.0-crop)));
-	fprintf(stderr, "FFT bin size: %0.2fHz\n", bin_size);
-	fprintf(stderr, "Buffer size: %i bytes (%0.2fms)\n", buf_len, 1000 * 0.5 * (float)buf_len / (float)bw_used);
+	printf("FFT bin size: %0.2fHz\n", bin_size);
+	printf("Buffer size: %i bytes (%0.2fms)\n", buf_len, 1000 * 0.5 * (float)buf_len / (float)bw_used);
 }
 
 void retune(rtlsdr_dev_t *d, int freq)
@@ -898,7 +898,7 @@ int main(int argc, char **argv)
 	if (interval < 1) {
 		interval = 1;}
 
-	fprintf(stderr, "Reporting every %i seconds\n", interval);
+	printf("Reporting every %i seconds\n", interval);
 
 	if (!dev_given) {
 		dev_index = verbose_device_search("0");
@@ -948,7 +948,7 @@ int main(int argc, char **argv)
 
 	rtlsdr_set_bias_tee(dev, enable_biastee);
 	if (enable_biastee)
-		fprintf(stderr, "activated bias-T on GPIO PIN 0\n");
+		printf("activated bias-T on GPIO PIN 0\n");
 
 	if (strcmp(filename, "-") == 0) { /* Write log to stdout */
 		file = stdout;

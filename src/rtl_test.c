@@ -256,7 +256,7 @@ void e4k_benchmark(void)
 	uint32_t freq, gap_start = 0, gap_end = 0;
 	uint32_t range_start = 0, range_end = 0;
 
-	fprintf(stderr, "Benchmarking E4000 PLL...\n");
+	printf("Benchmarking E4000 PLL...\n");
 
 	/* find tuner range start */
 	for (freq = MHZ(70); freq > MHZ(1); freq -= MHZ(1)) {
@@ -290,10 +290,10 @@ void e4k_benchmark(void)
 		}
 	}
 
-	fprintf(stderr, "E4K range: %i to %i MHz\n",
+	printf("E4K range: %i to %i MHz\n",
 		range_start/MHZ(1) + 1, range_end/MHZ(1) - 1);
 
-	fprintf(stderr, "E4K L-band gap: %i to %i MHz\n",
+	printf("E4K L-band gap: %i to %i MHz\n",
 		gap_start/MHZ(1), gap_end/MHZ(1));
 }
 
@@ -302,7 +302,7 @@ void r82xx_benchmark(void)
 	uint32_t freq;
 	uint32_t range_start = 0, range_end = 0;
 
-	fprintf(stderr, "Benchmarking R82xx PLL...\n");
+	printf("Benchmarking R82xx PLL...\n");
 
 	/* find tuner range start */
 	for (freq = MHZ(70); freq > MHZ(1); freq -= MHZ(1)) {
@@ -320,7 +320,7 @@ void r82xx_benchmark(void)
 		}
 	}
 
-	fprintf(stderr, "R8XX range: %i to %i MHz\n",
+	printf("R8XX range: %i to %i MHz\n",
 		range_start/MHZ(1) + 1, range_end/MHZ(1) - 1);
 
 }
@@ -389,6 +389,7 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
+
 #ifndef _WIN32
 	sigact.sa_handler = sighandler;
 	sigemptyset(&sigact.sa_mask);
@@ -401,12 +402,12 @@ int main(int argc, char **argv)
 	SetConsoleCtrlHandler( (PHANDLER_ROUTINE) sighandler, TRUE );
 #endif
 	count = rtlsdr_get_tuner_gains(dev, NULL);
-	fprintf(stderr, "Supported gain values (%d): ", count);
+	printf("Supported gain values (%d): ", count);
 
 	count = rtlsdr_get_tuner_gains(dev, gains);
 	for (i = 0; i < count; i++)
-		fprintf(stderr, "%.1f ", gains[i] / 10.0);
-	fprintf(stderr, "\n");
+		printf("%.1f ", gains[i] / 10.0);
+	printf("\n");
 
 	/* Set the sample rate */
 	verbose_set_sample_rate(dev, samp_rate);
@@ -427,28 +428,27 @@ int main(int argc, char **argv)
 		goto exit;
 	}
 
-
 	/* Enable test mode */
 	r = rtlsdr_set_testmode(dev, 1);
 
-	/* Reset endpoint before we start reading from it (mandatory) */
-	verbose_reset_buffer(dev);
-
 	if ((test_mode == PPM_BENCHMARK) && !sync_mode) {
-		fprintf(stderr, "Reporting PPM error measurement every %u seconds...\n", ppm_duration);
-		fprintf(stderr, "Press ^C after a few minutes.\n");
+		printf("Reporting PPM error measurement every %u seconds...\n", ppm_duration);
+		printf("Press ^C after a few minutes.\n");
 	}
 
 	if (test_mode == NO_BENCHMARK) {
-		fprintf(stderr, "\nInfo: This tool will continuously"
+		printf("\nInfo: This tool will continuously"
 				" read from the device, and report if\n"
 				"samples get lost. If you observe no "
 				"further output, everything is fine.\n\n");
 	}
 
+	/* Reset endpoint before we start reading from it (mandatory) */
+	verbose_reset_buffer(dev);
+
 	if (sync_mode) {
-		fprintf(stderr, "Reading samples in sync mode...\n");
-		fprintf(stderr, "(Samples are being lost but not reported.)\n");
+		printf("Reading samples in sync mode...\n");
+		printf("(Samples are being lost but not reported.)\n");
 		while (!do_exit) {
 			r = rtlsdr_read_sync(dev, buffer, buf_len, &n_read);
 			if (r < 0) {
@@ -463,7 +463,7 @@ int main(int argc, char **argv)
 			underrun_test(buffer, n_read, 1);
 		}
 	} else {
-		fprintf(stderr, "Reading samples in async mode...\n");
+		printf("Reading samples in async mode...\n");
 		r = rtlsdr_read_async(dev, rtlsdr_callback, NULL, buf_num, buf_len);
 	}
 

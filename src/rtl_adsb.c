@@ -483,7 +483,7 @@ int main(int argc, char **argv)
 
 	rtlsdr_set_bias_tee(dev, enable_biastee);
 	if (enable_biastee)
-		fprintf(stderr, "activated bias-T on GPIO PIN 0\n");
+		printf("activated bias-T on GPIO PIN 0\n");
 
 	/* Reset endpoint before we start reading from it (mandatory) */
 	verbose_reset_buffer(dev);

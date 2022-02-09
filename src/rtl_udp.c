@@ -251,7 +251,7 @@ static int set_gain_by_index(rtlsdr_dev_t *_dev, unsigned int index)
 
 		res = rtlsdr_set_tuner_gain(_dev, gains[index]);
 		if (verbosity)
-			fprintf(stderr, "set tuner gain to %.1f dB\n", gains[index] / 10.0);
+			printf("set tuner gain to %.1f dB\n", gains[index] / 10.0);
 
 		free(gains);
 	}
@@ -561,7 +561,7 @@ int main(int argc, char **argv)
 		usage();
 
 	if (verbosity)
-		fprintf(stderr, "verbosity set to %d\n", verbosity);
+		printf("verbosity set to %d\n", verbosity);
 
 	if (!dev_given) {
 		dev_index = verbose_device_search("0");
@@ -606,7 +606,7 @@ int main(int argc, char **argv)
 	if (r < 0)
 		fprintf(stderr, "WARNING: Failed to set center freq.\n");
 	else
-		fprintf(stderr, "Tuned to %i Hz.\n", frequency);
+		printf("Tuned to %i Hz.\n", frequency);
 
 	if (0 == gain) {
 		 /* Enable automatic gain */
@@ -624,14 +624,14 @@ int main(int argc, char **argv)
 		if (r < 0)
 			fprintf(stderr, "WARNING: Failed to set tuner gain.\n");
 		else
-			fprintf(stderr, "Tuner gain set to %f dB.\n", gain/10.0);
+			printf("Tuner gain set to %f dB.\n", gain/10.0);
 	}
 
 	verbose_set_bandwidth(dev, bandwidth);
 
 	rtlsdr_set_bias_tee(dev, enable_biastee);
 	if (enable_biastee)
-		fprintf(stderr, "activated bias-T on GPIO PIN 0\n");
+		printf("activated bias-T on GPIO PIN 0\n");
 
 	/* Reset endpoint before we start reading from it (mandatory) */
 	r = rtlsdr_reset_buffer(dev);
@@ -704,15 +704,15 @@ int main(int argc, char **argv)
 			dongle_info.tuner_gain_count = htonl(r);
 		if (verbosity)
 		{
-			fprintf(stderr, "Supported gain values (%d): ", r);
+			printf("Supported gain values (%d): ", r);
 			for (i = 0; i < r; i++)
-				fprintf(stderr, "%.1f ", gains[i] / 10.0);
-			fprintf(stderr, "\n");
+				printf("%.1f ", gains[i] / 10.0);
+			printf("\n");
 		}
 
 		r = sendto(s, (const char *)&dongle_info, sizeof(dongle_info), 0, (struct sockaddr *)&remote, sizeof(remote));
 		if (sizeof(dongle_info) != r)
-			printf("failed to send dongle information\n");
+			fprintf(stderr, "failed to send dongle information\n");
 
 		pthread_attr_init(&attr);
 		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);

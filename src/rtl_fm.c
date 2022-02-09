@@ -619,7 +619,7 @@ static int toNextCmdLine(struct cmd_state *c)
 			c->args = trim(c->args);
 
 		if (verbosity >= 2)
-			fprintf(stderr, "read from cmd file: freq %.3f kHz, gain %0.1f dB, level %s {%.1f +/- %.1f}, cmd '%s %s'\n",
+			printf("read from cmd file: freq %.3f kHz, gain %0.1f dB, level %s {%.1f +/- %.1f}, cmd '%s %s'\n",
 				c->freq /1000.0, c->gain /10.0,
 				aCritStr[c->trigCrit], c->refLevel, c->refLevelTol,
 				(c->command ? c->command : "%"), (c->args ? c->args : "") );
@@ -707,11 +707,11 @@ static void checkTriggerCommand(struct cmd_state *c, unsigned char adcSampleMax,
 	if ( c->lineNo < FREQUENCIES_LIMIT && c->waitTrigger[c->lineNo] <= 0 ) {
 			c->waitTrigger[c->lineNo] = triggerCommand ? c->numBlockTrigger : 0;
 			if (verbosity)
-				fprintf(stderr, "%.3f kHz: gain %4.1f + level %4.1f dB %s=> %s\n",
+				printf("%.3f kHz: gain %4.1f + level %4.1f dB %s=> %s\n",
 					(double)c->freq /1000.0, 0.1*c->gain, triggerLevel, adcText,
 					(triggerCommand ? "activates trigger" : "does not trigger") );
 			if (triggerCommand && c->command && c->command[0]) {
-				fprintf(stderr, "command to trigger is '%s %s'\n", c->command, c->args);
+				printf("command to trigger is '%s %s'\n", c->command, c->args);
 				/* prepare search/replace of special parameters for command arguments */
 				snprintf(acRepFreq, 32, "%u", c->freq);
 				snprintf(acRepGain, 32, "%d", c->gain);
@@ -722,7 +722,7 @@ static void checkTriggerCommand(struct cmd_state *c, unsigned char adcSampleMax,
 				executeInBackground( c->command, c->args, execSearchStrings, execReplaceStrings );
 			}
 	} else if (verbosity) {
-		fprintf(stderr, "%.3f kHz: gain %4.1f + level %4.1f dB %s=> %s, blocks for %d\n",
+		printf("%.3f kHz: gain %4.1f + level %4.1f dB %s=> %s, blocks for %d\n",
 			(double)c->freq /1000.0, 0.1*c->gain, triggerLevel, adcText, (triggerCommand ? "would trigger" : "does not trigger"),
 			(c->lineNo < FREQUENCIES_LIMIT ? c->waitTrigger[c->lineNo] : -1 ) );
 	}
@@ -1222,7 +1222,7 @@ void full_demod(struct demod_state *d)
 				avgRms = levelSum / printLevels;
 				rmsLevel = 20.0 * log10( 1E-10 + sr );
 				avgRmsLevel = 20.0 * log10( 1E-10 + avgRms );
-				fprintf(stderr, "%.3f kHz, %.1f avg rms, %d max rms, %d max max rms, %d squelch rms, %d rms, %.1f dB rms level, %.2f dB avg rms level\n",
+				printf("%.3f kHz, %.1f avg rms, %d max rms, %d max max rms, %d squelch rms, %d rms, %.1f dB rms level, %.2f dB avg rms level\n",
 					freqK, avgRms, levelMax, levelMaxMax, d->squelch_level, sr, rmsLevel, avgRmsLevel );
 				levelMax = 0;
 				levelSum = 0;
@@ -1234,7 +1234,7 @@ void full_demod(struct demod_state *d)
 		if (!sr)
 			sr = rms(d->lowpassed, d->lp_len, 1, d->dc_block_raw);
 		if ( printBlockLen && verbosity ) {
-			fprintf(stderr, "block length for rms after decimation is %d samples\n", d->lp_len);
+			printf("block length for rms after decimation is %d samples\n", d->lp_len);
 			if ( d->lp_len < 128 )
 				fprintf(stderr, "\n  WARNING: increase block length with option -W\n\n");
 			--printBlockLen;
@@ -1412,20 +1412,20 @@ static void optimal_settings(uint32_t freq, uint32_t rate)
 		dm->downsample = 1 << dm->downsample_passes;
 	}
 	if (verbosity >= 2) {
-		fprintf(stderr, "downsample_passes = %d (= # of fifth_order() iterations), downsample = %d\n", dm->downsample_passes, dm->downsample );
+		printf("downsample_passes = %d (= # of fifth_order() iterations), downsample = %d\n", dm->downsample_passes, dm->downsample );
 	}
 	capture_freq = freq;
 	capture_rate = dm->downsample * dm->rate_in;
 	if (verbosity >= 2)
-		fprintf(stderr, "capture_rate = dm->downsample * dm->rate_in = %d * %d = %d\n", dm->downsample, dm->rate_in, capture_rate );
+		printf("capture_rate = dm->downsample * dm->rate_in = %d * %d = %d\n", dm->downsample, dm->rate_in, capture_rate );
 	if (!d->offset_tuning) {
 		capture_freq = freq - capture_rate/4;
 		if (verbosity >= 2)
-			fprintf(stderr, "optimal_settings(freq = %u): capture_freq = freq - capture_rate/4 = %u\n", freq, capture_freq );
+			printf("optimal_settings(freq = %u): capture_freq = freq - capture_rate/4 = %u\n", freq, capture_freq );
 	}
 	capture_freq += cs->edge * dm->rate_in / 2;
 	if (verbosity >= 2)
-		fprintf(stderr, "optimal_settings(freq = %u): capture_freq +=  cs->edge * dm->rate_in / 2 = %d * %d / 2 = %u\n", freq, cs->edge, dm->rate_in, capture_freq );
+		printf("optimal_settings(freq = %u): capture_freq +=  cs->edge * dm->rate_in / 2 = %d * %d / 2 = %u\n", freq, cs->edge, dm->rate_in, capture_freq );
 	dm->output_scale = (1<<15) / (128 * dm->downsample);
 	if (dm->output_scale < 1) {
 		dm->output_scale = 1;}
@@ -1435,7 +1435,7 @@ static void optimal_settings(uint32_t freq, uint32_t rate)
 	d->freq = capture_freq;
 	d->rate = capture_rate;
 	if (verbosity >= 2)
-		fprintf(stderr, "optimal_settings(freq = %u) delivers freq %.0f, rate %.0f\n", freq, (double)d->freq, (double)d->rate );
+		printf("optimal_settings(freq = %u) delivers freq %.0f, rate %.0f\n", freq, (double)d->freq, (double)d->rate );
 }
 
 static void *controller_thread_fn(void *arg)
@@ -1448,7 +1448,7 @@ static void *controller_thread_fn(void *arg)
 
 	if (s->wb_mode) {
 		if (verbosity)
-			fprintf(stderr, "wbfm: adding 16000 Hz to every input frequency\n");
+			printf("wbfm: adding 16000 Hz to every input frequency\n");
 		for (i=0; i < s->freq_len; i++) {
 			s->freqs[i] += 16000;}
 	}
@@ -1457,7 +1457,7 @@ static void *controller_thread_fn(void *arg)
 	if (c->filename) {
 		dongle.mute = dongle.rate; /* over a second - until parametrized the dongle */
 		toNextCmdLine(c);
-		/*fprintf(stderr, "\nswitched to next command line. new freq %u\n", c->freq);*/
+		/*printf("\nswitched to next command line. new freq %u\n", c->freq);*/
 		s->freqs[0] = c->freq;
 		execWaitHop = 0;
 	}
@@ -1470,27 +1470,27 @@ static void *controller_thread_fn(void *arg)
 
 	/* Set the frequency */
 	if (verbosity) {
-		fprintf(stderr, "verbose_set_frequency(%.3f kHz)\n", (double)dongle.userFreq /1000.0);
+		printf("verbose_set_frequency(%.3f kHz)\n", (double)dongle.userFreq /1000.0);
 		if (!dongle.offset_tuning)
-			fprintf(stderr, "  frequency is away from parametrized one, to avoid negative impact from dc\n");
+			printf("  frequency is away from parametrized one, to avoid negative impact from dc\n");
 	}
 	verbose_set_frequency(dongle.dev, dongle.freq);
-	fprintf(stderr, "Oversampling input by: %ix.\n", demod.downsample);
-	fprintf(stderr, "Oversampling output by: %ix.\n", demod.post_downsample);
-	fprintf(stderr, "Buffer size: %0.2fms\n",
+	printf("Oversampling input by: %ix.\n", demod.downsample);
+	printf("Oversampling output by: %ix.\n", demod.post_downsample);
+	printf("Buffer size: %0.2fms\n",
 		1000 * 0.5 * (float)ACTUAL_BUF_LENGTH / (float)dongle.rate);
 
 	/* Set the sample rate */
 	if (verbosity)
-		fprintf(stderr, "verbose_set_sample_rate(%.0f Hz)\n", (double)dongle.rate);
+		printf("verbose_set_sample_rate(%.0f Hz)\n", (double)dongle.rate);
 	verbose_set_sample_rate(dongle.dev, dongle.rate);
-	fprintf(stderr, "Output at %u Hz.\n", demod.rate_in/demod.post_downsample);
+	printf("Output at %u Hz.\n", demod.rate_in/demod.post_downsample);
 
 	while (!do_exit) {
 		if (execWaitHop)
 			safe_cond_wait(&s->hop, &s->hop_m);
 		execWaitHop = 1;  /* execute following safe_cond_wait()'s */
-		/* fprintf(stderr, "\nreceived hop condition\n"); */
+		/* printf("\nreceived hop condition\n"); */
 		if (s->freq_len <= 1 && !c->filename) {
 			continue;}
 		if (!c->filename) {
@@ -1874,9 +1874,9 @@ int main(int argc, char **argv)
 	}
 
 	if (verbosity)
-		fprintf(stderr, "verbosity set to %d\n", verbosity);
+		printf("verbosity set to %d\n", verbosity);
 
-	/* quadruple sample_rate to limit to Î”Î¸ to Â±Ï€/2 */
+	/* quadruple sample_rate to limit to Δθ to ±π/2 */
 	demod.rate_in *= demod.post_downsample;
 
 	if (!output.rate) {
@@ -1924,7 +1924,7 @@ int main(int argc, char **argv)
 		double tc = (double)timeConstant * 1e-6;
 		demod.deemph_a = (int)round(1.0/((1.0-exp(-1.0/(demod.rate_out * tc)))));
 		if (verbosity)
-			fprintf(stderr, "using wbfm deemphasis filter with time constant %d us\n", timeConstant );
+			printf("using wbfm deemphasis filter with time constant %d us\n", timeConstant );
 	}
 
 	/* Set the tuner gain */
@@ -1939,7 +1939,7 @@ int main(int argc, char **argv)
 
 	rtlsdr_set_bias_tee(dongle.dev, enable_biastee);
 	if (enable_biastee)
-		fprintf(stderr, "activated bias-T on GPIO PIN 0\n");
+		printf("activated bias-T on GPIO PIN 0\n");
 
 	verbose_ppm_set(dongle.dev, dongle.ppm_error);
 
@@ -1952,12 +1952,12 @@ int main(int argc, char **argv)
 	{
 		int r;
 		uint32_t in_bw, out_bw, last_bw = 0;
-		fprintf(stderr, "Supported bandwidth values in kHz:\n");
+		printf("Supported bandwidth values in kHz:\n");
 		for ( in_bw = 1; in_bw < 3200; ++in_bw )
 		{
 			r = rtlsdr_set_and_get_tuner_bandwidth(dongle.dev, in_bw*1000, &out_bw, 0 /* =apply_bw */);
 			if ( r == 0 && out_bw != 0 && ( out_bw != last_bw || in_bw == 1 ) )
-				fprintf(stderr, "%s%.1f", (in_bw==1 ? "" : ", "), out_bw/1000.0 );
+				printf("%s%.1f", (in_bw==1 ? "" : ", "), out_bw/1000.0 );
 			last_bw = out_bw;
 		}
 		fprintf(stderr,"\n");
@@ -1980,7 +1980,7 @@ int main(int argc, char **argv)
 		}
 		else
 		{
-			fprintf(stderr, "Open %s for write\n", output.filename);
+			printf("Open %s for write\n", output.filename);
 			if (writeWav) {
 				int nChan = (demod.mode_demod == &raw_demod) ? 2 : 1;
 				int srate = (demod.rate_out2 > 0) ? demod.rate_out2 : demod.rate_out;
@@ -2029,7 +2029,7 @@ int main(int argc, char **argv)
 		/* output scan statistics */
 		for (k = 0; k < FREQUENCIES_LIMIT; k++) {
 			if (cmd.statNumLevels[k] > 0)
-				fprintf(stderr, "%u, %.1f, %.2f, %.1f\n", cmd.statFreq[k], cmd.statMinLevel[k], cmd.statSumLevels[k] / cmd.statNumLevels[k], cmd.statMaxLevel[k] );
+				printf("%u, %.1f, %.2f, %.1f\n", cmd.statFreq[k], cmd.statMinLevel[k], cmd.statSumLevels[k] / cmd.statNumLevels[k], cmd.statMaxLevel[k] );
 		}
 	}
 
