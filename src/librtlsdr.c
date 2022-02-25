@@ -230,13 +230,10 @@ int r820t_set_freq(void *dev, uint32_t freq) {
 	return r82xx_set_freq(&devt->r82xx_p, freq);
 }
 
-static int rtlsdr_set_fir(rtlsdr_dev_t *dev, int table);
-
 int r820t_set_bw(void *dev, int bw, uint32_t *applied_bw, int apply) {
-	int r;
 	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
+	int r = r82xx_set_bandwidth(&devt->r82xx_p, bw, applied_bw, apply);
 
-	r = r82xx_set_bandwidth(&devt->r82xx_p, bw, applied_bw, apply);
 	if(!apply)
 		return 0;
 	if(r < 0)
@@ -270,10 +267,9 @@ int r820t_get_i2c_register(void *dev, unsigned char *data, int *len, int *streng
 }
 
 int r820t_set_sideband(void *dev, int sideband) {
-	int r;
 	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
+	int r = r82xx_set_sideband(&devt->r82xx_p, sideband);
 
-	r = r82xx_set_sideband(&devt->r82xx_p, sideband);
 	if(r < 0)
 		return r;
 	r = rtlsdr_set_spectrum_inversion(devt, sideband);
@@ -572,7 +568,7 @@ static int List_Devices(int index, struct found_device *found)
 		return 0;
 	}
 
-	ZeroMemory(&DeviceInfoData, sizeof(SP_DEVINFO_DATA));
+	memset(&DeviceInfoData, 0, sizeof(SP_DEVINFO_DATA));
 	DeviceInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
 
 	while (SetupDiEnumDeviceInfo(DeviceInfoSet, DeviceIndex++, &DeviceInfoData))
@@ -1835,8 +1831,7 @@ static int get_string_descriptor_ascii(rtlsdr_dev_t *dev, uint8_t index, char *d
 	return 0;
 }
 
-int rtlsdr_get_usb_strings(rtlsdr_dev_t *dev, char *manufact, char *product,
-							char *serial)
+int rtlsdr_get_usb_strings(rtlsdr_dev_t *dev, char *manufact, char *product, char *serial)
 {
 	int buf_max = 256;
 
@@ -2027,7 +2022,6 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 {
 	int r;
 	uint8_t reg;
-	rtlsdr_dev_t *dev = NULL;
 #ifdef _WIN32
 	struct found_device found;
 #else
@@ -2038,12 +2032,10 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 	struct libusb_device_descriptor dd;
 	ssize_t cnt;
 #endif
+	rtlsdr_dev_t *dev = calloc(1, sizeof(rtlsdr_dev_t));
 
-	dev = malloc(sizeof(rtlsdr_dev_t));
-	if (NULL == dev)
+	if (!dev)
 		return -ENOMEM;
-
-	memset(dev, 0, sizeof(rtlsdr_dev_t));
 
 #ifndef _WIN32
 	r = libusb_init(&dev->ctx);
@@ -2059,7 +2051,6 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 	pthread_mutex_init(&dev->cs_mutex, &dev->cs_mutex_attr);
 
 	dev->dev_lost = 1;
-	//dev->freq = 100000000;
 	r = -1;
 
 #ifdef _WIN32
@@ -2475,15 +2466,11 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 	if(overlapped)
 	{
 		for(i = 0; i < buf_num; ++i)
-		{
-			overlapped[i] = malloc(sizeof(OVERLAPPED));
-			memset(overlapped[i], 0, sizeof(OVERLAPPED));
-		}
+			overlapped[i] = calloc(sizeof(OVERLAPPED), 1);
 	}
-	xfer_buf = malloc(buf_num * sizeof(unsigned char *));
+	xfer_buf = calloc(buf_num * sizeof(unsigned char *), 1);
 	if(xfer_buf)
 	{
-		memset(xfer_buf, 0, buf_num * sizeof(unsigned char *));
 		for(i = 0; i < buf_num; ++i)
 		{
 			xfer_buf[i] = malloc(buf_len);
@@ -2990,8 +2977,7 @@ int rtlsdr_set_bias_tee(rtlsdr_dev_t *dev, int on)
 {
 	if (dev->slave_demod)
 		return 0;
-	else
-		return rtlsdr_set_bias_tee_gpio(dev, 0, on);
+	return rtlsdr_set_bias_tee_gpio(dev, 0, on);
 }
 
 const char * rtlsdr_get_opt_help(int longInfo)
