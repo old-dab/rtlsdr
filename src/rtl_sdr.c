@@ -47,7 +47,7 @@ static rtlsdr_dev_t *dev = NULL;
 
 void usage(void)
 {
-	fprintf(stderr,
+	printf(
 		"rtl_sdr, an I/Q recorder for RTL2832 based DVB-T receivers\n\n"
 		"Usage:\t -f frequency_to_tune_to [Hz]\n"
 		"\t[-s samplerate (default: 2048000 Hz)]\n"
@@ -71,7 +71,7 @@ BOOL WINAPI
 sighandler(int signum)
 {
 	if (CTRL_C_EVENT == signum) {
-		fprintf(stderr, "Signal caught, exiting!\n");
+		printf( "Signal caught, exiting!\n");
 		do_exit = 1;
 		rtlsdr_cancel_async(dev);
 		return TRUE;
@@ -81,7 +81,7 @@ sighandler(int signum)
 #else
 static void sighandler(int signum)
 {
-	fprintf(stderr, "Signal caught, exiting!\n");
+	printf( "Signal caught, exiting!\n");
 	do_exit = 1;
 	rtlsdr_cancel_async(dev);
 }
@@ -100,7 +100,7 @@ static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 		}
 
 		if (fwrite(buf, 1, len, (FILE*)ctx) != len) {
-			fprintf(stderr, "Short write, samples lost, exiting!\n");
+			printf( "Short write, samples lost, exiting!\n");
 			rtlsdr_cancel_async(dev);
 		}
 		else
@@ -189,11 +189,11 @@ int main(int argc, char **argv)
 
 	if(out_block_size < MINIMAL_BUF_LENGTH ||
 	   out_block_size > MAXIMAL_BUF_LENGTH ){
-		fprintf(stderr,
+		printf(
 			"Output block size wrong value, falling back to default\n");
-		fprintf(stderr,
+		printf(
 			"Minimal length: %u\n", MINIMAL_BUF_LENGTH);
-		fprintf(stderr,
+		printf(
 			"Maximal length: %u\n", MAXIMAL_BUF_LENGTH);
 		out_block_size = DEFAULT_BUF_LENGTH;
 	}
@@ -210,7 +210,7 @@ int main(int argc, char **argv)
 
 	r = rtlsdr_open(&dev, (uint32_t)dev_index);
 	if (r < 0) {
-		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
+		printf( "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
 #ifndef _WIN32
@@ -256,7 +256,7 @@ int main(int argc, char **argv)
 	} else {
 		file = fopen(filename, "wb");
 		if (!file) {
-			fprintf(stderr, "Failed to open %s\n", filename);
+			printf( "Failed to open %s\n", filename);
 			goto out;
 		}
 		if (writeWav) {
@@ -272,7 +272,7 @@ int main(int argc, char **argv)
 		while (!do_exit) {
 			r = rtlsdr_read_sync(dev, buffer, out_block_size, &n_read);
 			if (r < 0) {
-				fprintf(stderr, "WARNING: sync read failed.\n");
+				printf( "WARNING: sync read failed.\n");
 				break;
 			}
 
@@ -282,13 +282,13 @@ int main(int argc, char **argv)
 			}
 
 			if (fwrite(buffer, 1, n_read, file) != (size_t)n_read) {
-				fprintf(stderr, "Short write, samples lost, exiting!\n");
+				printf( "Short write, samples lost, exiting!\n");
 				break;
 			}
 			waveDataSize += n_read;
 
 			if ((uint32_t)n_read < out_block_size) {
-				fprintf(stderr, "Short read, samples lost, exiting!\n");
+				printf( "Short read, samples lost, exiting!\n");
 				break;
 			}
 
@@ -306,9 +306,9 @@ int main(int argc, char **argv)
 	}
 
 	if (do_exit)
-		fprintf(stderr, "\nUser cancel, exiting...\n");
+		printf( "\nUser cancel, exiting...\n");
 	else
-		fprintf(stderr, "\nLibrary error %d, exiting...\n", r);
+		printf( "\nLibrary error %d, exiting...\n", r);
 
 	if (file != stdout)
 		fclose(file);

@@ -181,14 +181,14 @@ void usage(void)
 BOOL WINAPI sighandler(int signum)
 {
 	if (CTRL_C_EVENT == signum) {
-		fprintf(stderr, "CTRL-C caught, exiting!\n");
+		printf("CTRL-C caught, exiting!\n");
 		do_exit = 1;
 		ctrlC_exit = 1;
 		rtlsdr_cancel_async(dev);
 		return TRUE;
 	}
 	else if (CTRL_CLOSE_EVENT == signum) {
-		fprintf(stderr, "SIGQUIT caught, exiting!\n");
+		printf("SIGQUIT caught, exiting!\n");
 		do_exit = 1;
 		rtlsdr_cancel_async(dev);
 		return TRUE;
@@ -198,7 +198,7 @@ BOOL WINAPI sighandler(int signum)
 #else
 static void sighandler(int signum)
 {
-	fprintf(stderr, "Signal (%d) caught, ask for exit!\n", signum);
+	printf("Signal (%d) caught, ask for exit!\n", signum);
 	rtlsdr_cancel_async(dev);
 	do_exit = 1;
 }
@@ -727,7 +727,7 @@ int main(int argc, char **argv)
 	rtlsdr_cal_imr(cal_imr);
 	rtlsdr_open(&dev, (uint32_t)dev_index);
 	if (NULL == dev) {
-	fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
+	printf("Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
 
@@ -758,7 +758,7 @@ int main(int argc, char **argv)
 	/* Set the frequency */
 	r = rtlsdr_set_center_freq(dev, frequency);
 	if (r < 0)
-		fprintf(stderr, "WARNING: Failed to set center freq.\n");
+		printf("WARNING: Failed to set center freq.\n");
 	else
 		printf("Tuned to %i Hz.\n", frequency);
 

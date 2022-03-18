@@ -88,7 +88,7 @@ int adsb_frame[14];
 
 void usage(void)
 {
-	fprintf(stderr,
+	printf(
 		"rtl_adsb, a simple ADS-B decoder\n\n"
 		"Use:\trtl_adsb [-R] [-g gain] [-p ppm] [output file]\n"
 		"\t[-d device_index or serial (default: 0)]\n"
@@ -115,7 +115,7 @@ BOOL WINAPI
 sighandler(int signum)
 {
 	if (CTRL_C_EVENT == signum) {
-		fprintf(stderr, "Signal caught, exiting!\n");
+		printf( "Signal caught, exiting!\n");
 		do_exit = 1;
 		rtlsdr_cancel_async(dev);
 		return TRUE;
@@ -125,7 +125,7 @@ sighandler(int signum)
 #else
 static void sighandler(int signum)
 {
-	fprintf(stderr, "Signal caught, exiting!\n");
+	printf( "Signal caught, exiting!\n");
 	do_exit = 1;
 	rtlsdr_cancel_async(dev);
 }
@@ -435,7 +435,7 @@ int main(int argc, char **argv)
 
 	r = rtlsdr_open(&dev, (uint32_t)dev_index);
 	if (r < 0) {
-		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
+		printf( "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
 #ifndef _WIN32
@@ -459,7 +459,7 @@ int main(int argc, char **argv)
 	} else {
 		file = fopen(filename, "wb");
 		if (!file) {
-			fprintf(stderr, "Failed to open %s\n", filename);
+			printf( "Failed to open %s\n", filename);
 			exit(1);
 		}
 	}
@@ -494,9 +494,9 @@ int main(int argc, char **argv)
 			      DEFAULT_BUF_LENGTH);
 
 	if (do_exit) {
-		fprintf(stderr, "\nUser cancel, exiting...\n");}
+		printf( "\nUser cancel, exiting...\n");}
 	else {
-		fprintf(stderr, "\nLibrary error %d, exiting...\n", r);}
+		printf( "\nLibrary error %d, exiting...\n", r);}
 	rtlsdr_cancel_async(dev);
 	pthread_cancel(demod_thread);
 	pthread_join(demod_thread, NULL);

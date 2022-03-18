@@ -119,7 +119,7 @@ int peak_hold = 0;
 
 void usage(void)
 {
-	fprintf(stderr,
+	printf(
 		"rtl_power, a simple FFT logger for RTL2832 based DVB-T receivers\n\n"
 		"Use:\trtl_power -f freq_range [-options] [filename]\n"
 		"\t-f lower:upper:bin_size [Hz]\n"
@@ -176,11 +176,11 @@ void multi_bail(void)
 {
 	if (do_exit == 1)
 	{
-		fprintf(stderr, "Signal caught, finishing scan pass.\n");
+		printf( "Signal caught, finishing scan pass.\n");
 	}
 	if (do_exit >= 2)
 	{
-		fprintf(stderr, "Signal caught, aborting immediately.\n");
+		printf( "Signal caught, aborting immediately.\n");
 	}
 }
 
@@ -488,7 +488,7 @@ void frequency_range(char *arg, double crop)
 		crop = 0;
 	}
 	if (tune_count > MAX_TUNES) {
-		fprintf(stderr, "Error: bandwidth too wide.\n");
+		printf( "Error: bandwidth too wide.\n");
 		exit(1);
 	}
 	buf_len = 2 * (1<<bin_e) * downsample;
@@ -507,7 +507,7 @@ void frequency_range(char *arg, double crop)
 		ts->downsample_passes = downsample_passes;
 		ts->avg = (long*)malloc((1<<bin_e) * sizeof(long));
 		if (!ts->avg) {
-			fprintf(stderr, "Error: malloc.\n");
+			printf( "Error: malloc.\n");
 			exit(1);
 		}
 		for (j=0; j<(1<<bin_e); j++) {
@@ -515,7 +515,7 @@ void frequency_range(char *arg, double crop)
 		}
 		ts->buf8 = (uint8_t*)malloc(buf_len * sizeof(uint8_t));
 		if (!ts->buf8) {
-			fprintf(stderr, "Error: malloc.\n");
+			printf( "Error: malloc.\n");
 			exit(1);
 		}
 		ts->buf_len = buf_len;
@@ -541,7 +541,7 @@ void retune(rtlsdr_dev_t *d, int freq)
 	usleep(5000);
 	rtlsdr_read_sync(d, &dump, BUFFER_DUMP, &n_read);
 	if (n_read != BUFFER_DUMP) {
-		fprintf(stderr, "Error: bad retune.\n");}
+		printf( "Error: bad retune.\n");}
 }
 
 void fifth_order(int16_t *data, int length)
@@ -649,7 +649,7 @@ void scanner(void)
 			retune(dev, ts->freq);}
 		rtlsdr_read_sync(dev, ts->buf8, buf_len, &n_read);
 		if (n_read != buf_len) {
-			fprintf(stderr, "Error: dropped samples.\n");}
+			printf( "Error: dropped samples.\n");}
 		/* rms */
 		if (bin_len == 1) {
 			rms_power(ts);
@@ -875,12 +875,12 @@ int main(int argc, char **argv)
 	}
 
 	if (!f_set) {
-		fprintf(stderr, "No frequency range provided.\n");
+		printf( "No frequency range provided.\n");
 		exit(1);
 	}
 
 	if ((crop < 0.0) || (crop > 1.0)) {
-		fprintf(stderr, "Crop value outside of 0 to 1.\n");
+		printf( "Crop value outside of 0 to 1.\n");
 		exit(1);
 	}
 
@@ -910,7 +910,7 @@ int main(int argc, char **argv)
 
 	r = rtlsdr_open(&dev, (uint32_t)dev_index);
 	if (r < 0) {
-		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
+		printf( "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
 #ifndef _WIN32
@@ -959,7 +959,7 @@ int main(int argc, char **argv)
 	} else {
 		file = fopen(filename, "wb");
 		if (!file) {
-			fprintf(stderr, "Failed to open %s\n", filename);
+			printf( "Failed to open %s\n", filename);
 			exit(1);
 		}
 	}
@@ -1003,9 +1003,9 @@ int main(int argc, char **argv)
 	/* clean up */
 
 	if (do_exit) {
-		fprintf(stderr, "\nUser cancel, exiting...\n");}
+		printf( "\nUser cancel, exiting...\n");}
 	else {
-		fprintf(stderr, "\nLibrary error %d, exiting...\n", r);}
+		printf( "\nLibrary error %d, exiting...\n", r);}
 
 	if (file != stdout) {
 		fclose(file);}

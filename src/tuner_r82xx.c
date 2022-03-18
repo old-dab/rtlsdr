@@ -37,7 +37,7 @@
 #include "tuner_r82xx.h"
 
 #ifdef _WIN32
-#include "convenience/convenience.h"
+//#include "convenience/convenience.h"
 #endif
 
 #define MHZ(x)		((x)*1000*1000)
@@ -550,7 +550,7 @@ static int r82xx_write(struct r82xx_priv *priv, uint8_t reg, uint8_t *buf, int l
 
 	rc = rtlsdr_i2c_write_fn(priv->rtl_dev, priv->cfg->i2c_addr, reg, buf, len);
 	if (rc != len) {
-		fprintf(stderr, "%s: i2c wr failed=%d reg=%02x len=%d\n",
+		printf( "%s: i2c wr failed=%d reg=%02x len=%d\n",
 			   __FUNCTION__, rc, reg, len);
 		if (rc < 0)
 			return rc;
@@ -607,7 +607,7 @@ static int r82xx_read(struct r82xx_priv *priv, uint8_t *buf, int len)
 
 	rc = rtlsdr_i2c_read_fn(priv->rtl_dev, priv->cfg->i2c_addr, 0, buf, len);
 	if (rc != len) {
-		fprintf(stderr, "%s: i2c rd failed=%d len=%d\n",
+		printf( "%s: i2c rd failed=%d len=%d\n",
 			   __FUNCTION__, rc, len);
 		if (rc < 0)
 			return rc;
@@ -693,7 +693,7 @@ static int r82xx_set_pll(struct r82xx_priv *priv, uint32_t freq)
 	uint8_t data[3];
 
 	if ((freq < 25000000) || (freq > 1900000000)){
-		fprintf(stderr, "[R82XX] No valid PLL values for %u Hz!\n", freq);
+		printf( "[R82XX] No valid PLL values for %u Hz!\n", freq);
 		return -1;
 	}
 
@@ -790,7 +790,7 @@ static int r82xx_set_pll(struct r82xx_priv *priv, uint32_t freq)
 	}
 
 	if (!(data[2] & 0x40)) {
-		fprintf(stderr, "[R82XX] PLL not locked for %u Hz!\n", freq);
+		printf( "[R82XX] PLL not locked for %u Hz!\n", freq);
 		priv->has_lock = 0;
 		return -1;
 	}
@@ -815,7 +815,7 @@ static int r82xx_set_pll(struct r82xx_priv *priv, uint32_t freq)
 		}
 		actual_vco = 2 * pll_ref * nint + 2 * pll_ref * (dither_offset + sdm) / 65536;
 		tuning_error = (int)(actual_vco - vco_freq) / mix_div;
-		//fprintf(stderr, "[R82XX] requested %uHz; selected mix_div=%u vco_freq=%lld nint=%u sdm=%u; actual_vco=%lld; xtal=%.1f, tuning error=%dHz\n",
+		//printf( "[R82XX] requested %uHz; selected mix_div=%u vco_freq=%lld nint=%u sdm=%u; actual_vco=%lld; xtal=%.1f, tuning error=%dHz\n",
 		//		freq, mix_div, vco_freq, nint, sdm, actual_vco, priv->cfg->xtal, tuning_error);
 		if(priv->sideband)
 			zf = priv->int_freq - tuning_error;
@@ -823,7 +823,6 @@ static int r82xx_set_pll(struct r82xx_priv *priv, uint32_t freq)
 			zf = priv->int_freq + tuning_error;
 		return rtlsdr_set_if_freq(priv->rtl_dev, zf+3);
 	}
-	return 0;
 }
 
 static int r82xx_sysfreq_sel(struct r82xx_priv *priv,
@@ -1356,7 +1355,7 @@ static int r82xx_imr(struct r82xx_priv *priv, uint8_t range)
 
 err:
 	if (rc < 0)
-		fprintf(stderr, "%s: failed=%d\n", __FUNCTION__, rc);
+		printf( "%s: failed=%d\n", __FUNCTION__, rc);
 	return rc;
 }
 
@@ -1423,7 +1422,7 @@ static int r82xx_imr_callibrate(struct r82xx_priv *priv)
 
 err:
 	if (rc < 0)
-		fprintf(stderr, "%s: failed=%d\n", __FUNCTION__, rc);
+		printf( "%s: failed=%d\n", __FUNCTION__, rc);
 	return rc;
 }
 
@@ -1448,7 +1447,7 @@ int r82xx_init(struct r82xx_priv *priv)
 
 err:
 	if (rc < 0)
-		fprintf(stderr, "%s: failed=%d\n", __FUNCTION__, rc);
+		printf( "%s: failed=%d\n", __FUNCTION__, rc);
 	return rc;
 }
 

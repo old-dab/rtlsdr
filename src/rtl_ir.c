@@ -67,7 +67,7 @@ struct dongle_state dongle;
 
 void usage(void)
 {
-	fprintf(stderr,
+	printf(
 		"rtl_ir\n\n"
 		"Use:\trtl_ir [-options]\n"
 		"\t[-d device_index (default: 0)]\n"
@@ -86,7 +86,7 @@ BOOL WINAPI
 sighandler(int signum)
 {
 	if (CTRL_C_EVENT == signum) {
-		fprintf(stderr, "Signal caught, exiting!\n");
+		printf( "Signal caught, exiting!\n");
 		do_exit = 1;
 		rtlsdr_cancel_async(dongle.dev);
 		return TRUE;
@@ -96,7 +96,7 @@ sighandler(int signum)
 #else
 static void sighandler(int signum)
 {
-	fprintf(stderr, "Signal caught, exiting!\n");
+	printf( "Signal caught, exiting!\n");
 	do_exit = 1;
 	rtlsdr_cancel_async(dongle.dev);
 }
@@ -149,7 +149,7 @@ int main(int argc, char **argv) {
 
 	r = rtlsdr_open(&dongle.dev, (uint32_t)dongle.dev_index);
 	if (r < 0) {
-		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dongle.dev_index);
+		printf( "Failed to open rtlsdr device #%d.\n", dongle.dev_index);
 		exit(1);
 	}
 #ifndef _WIN32
@@ -174,7 +174,7 @@ int main(int argc, char **argv) {
 
 		r = rtlsdr_ir_query(dongle.dev, buf, sizeof(buf));
 		if (r < 0) {
-			fprintf(stderr, "rtlsdr_ir_query failed: %d\n", r);
+			printf( "rtlsdr_ir_query failed: %d\n", r);
 		}
 
 		for (i = 0; i < r; i++) {
@@ -202,9 +202,9 @@ int main(int argc, char **argv) {
 	}
 
 	if (do_exit) {
-		fprintf(stderr, "\nUser cancel, exiting...\n");}
+		printf( "\nUser cancel, exiting...\n");}
 	else {
-		fprintf(stderr, "\nLibrary error %d, exiting...\n", r);}
+		printf( "\nLibrary error %d, exiting...\n", r);}
 
 	rtlsdr_cancel_async(dongle.dev);
 

@@ -79,7 +79,7 @@ static unsigned int ppm_duration = PPM_DURATION;
 
 void usage(void)
 {
-	fprintf(stderr,
+	printf(
 		"rtl_test, a benchmark tool for RTL2832 based DVB-T receivers\n\n"
 		"Usage:\n"
 		"\t[-b number of buffers (default: 15, set by library)]\n"
@@ -97,7 +97,7 @@ BOOL WINAPI
 sighandler(int signum)
 {
 	if (CTRL_C_EVENT == signum) {
-		fprintf(stderr, "Signal caught, exiting!\n");
+		printf( "Signal caught, exiting!\n");
 		do_exit = 1;
 		rtlsdr_cancel_async(dev);
 		return TRUE;
@@ -107,7 +107,7 @@ sighandler(int signum)
 #else
 static void sighandler(int signum)
 {
-	fprintf(stderr, "Signal caught, exiting!\n");
+	printf( "Signal caught, exiting!\n");
 	do_exit = 1;
 	rtlsdr_cancel_async(dev);
 }
@@ -386,7 +386,7 @@ int main(int argc, char **argv)
 
 	r = rtlsdr_open(&dev, (uint32_t)dev_index);
 	if (r < 0) {
-		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
+		printf( "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
 
@@ -423,7 +423,7 @@ int main(int argc, char **argv)
 			r82xx_benchmark();
 			break;
 		default:
-			fprintf(stderr, "No supported tuner found\n");
+			printf( "No supported tuner found\n");
 		}
 		goto exit;
 	}
@@ -452,12 +452,12 @@ int main(int argc, char **argv)
 		while (!do_exit) {
 			r = rtlsdr_read_sync(dev, buffer, buf_len, &n_read);
 			if (r < 0) {
-				fprintf(stderr, "WARNING: sync read failed.\n");
+				printf( "WARNING: sync read failed.\n");
 				break;
 			}
 
 			if ((uint32_t)n_read < buf_len) {
-				fprintf(stderr, "Short read, samples lost, exiting!\n");
+				printf( "Short read, samples lost, exiting!\n");
 				break;
 			}
 			underrun_test(buffer, n_read, 1);
@@ -468,11 +468,11 @@ int main(int argc, char **argv)
 	}
 
 	if (do_exit) {
-		fprintf(stderr, "\nUser cancel, exiting...\n");
-		fprintf(stderr, "Samples per million lost (minimum): %i\n", (int)(1000000L * dropped_samples / total_samples));
+		printf( "\nUser cancel, exiting...\n");
+		printf( "Samples per million lost (minimum): %i\n", (int)(1000000L * dropped_samples / total_samples));
 	}
 	else
-		fprintf(stderr, "\nLibrary error %d, exiting...\n", r);
+		printf( "\nLibrary error %d, exiting...\n", r);
 
 exit:
 	rtlsdr_close(dev);

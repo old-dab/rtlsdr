@@ -244,7 +244,7 @@ struct cmd_state cmd;
 
 void usage(void)
 {
-	fprintf(stderr,
+	printf(
 		"rtl_fm, a simple narrow band FM demodulator for RTL2832 based DVB-T receivers\n\n"
 		"Use:\trtl_fm -f freq [-options] [filename]\n"
 		"\t-f frequency_to_tune_to [Hz]\n"
@@ -323,7 +323,7 @@ BOOL WINAPI
 sighandler(int signum)
 {
 	if (CTRL_C_EVENT == signum) {
-		fprintf(stderr, "Signal caught, exiting!\n");
+		printf( "Signal caught, exiting!\n");
 		do_exit = 1;
 		rtlsdr_cancel_async(dongle.dev);
 		return TRUE;
@@ -333,7 +333,7 @@ sighandler(int signum)
 #else
 static void sighandler(int signum)
 {
-	fprintf(stderr, "Signal caught, exiting!\n");
+	printf( "Signal caught, exiting!\n");
 	do_exit = 1;
 	rtlsdr_cancel_async(dongle.dev);
 }
@@ -533,7 +533,7 @@ static int toNextCmdLine(struct cmd_state *c)
 	while (1) {
 		if (c->file && feof(c->file)) {
 			if (!numValidLines) {
-				fprintf(stderr, "error: command file '%s' does not contain any valid lines!\n", c->filename);
+				printf( "error: command file '%s' does not contain any valid lines!\n", c->filename);
 				return 0;
 			}
 			fclose(c->file);
@@ -556,7 +556,7 @@ static int toNextCmdLine(struct cmd_state *c)
 			continue;  /* detect comment lines and empty lines */
 
 		pCmdFreq = strtok(pLine, delim);
-		if (!pCmdFreq) { fprintf(stderr, "error parsing frequency in line %d of command file!\n", c->lineNo); continue; }
+		if (!pCmdFreq) { printf( "error parsing frequency in line %d of command file!\n", c->lineNo); continue; }
 		pCmdFreq = trim(pCmdFreq);
 		/* check keywords */
 		if (!strcmp(pCmdFreq, "adc") || !strcmp(pCmdFreq, "adcmax")) {
@@ -570,7 +570,7 @@ static int toNextCmdLine(struct cmd_state *c)
 		c->freq = (uint32_t)atofs(pCmdFreq);
 
 		pCmdGain = strtok(NULL, delim);
-		if (!pCmdGain) { fprintf(stderr, "error parsing gain in line %d of command file!\n", c->lineNo); continue; }
+		if (!pCmdGain) { printf( "error parsing gain in line %d of command file!\n", c->lineNo); continue; }
 		pCmdGain = trim(pCmdGain);
 		if (!strcmp(pCmdGain,"auto") || !strcmp(pCmdGain,"a"))
 			c->gain = AUTO_GAIN;
@@ -578,7 +578,7 @@ static int toNextCmdLine(struct cmd_state *c)
 			c->gain = (int)(atof(pCmdGain) * 10);
 
 		pCmdTrigCrit = strtok(NULL, delim);
-		if (!pCmdTrigCrit) { fprintf(stderr, "error parsing expr in line %d of command file!\n", c->lineNo); continue; }
+		if (!pCmdTrigCrit) { printf( "error parsing expr in line %d of command file!\n", c->lineNo); continue; }
 		pCmdTrigCrit = trim(pCmdTrigCrit);
 		if (!strcmp(pCmdTrigCrit,"in"))			c->trigCrit = crit_IN;
 		else if (!strcmp(pCmdTrigCrit,"=="))	c->trigCrit = crit_IN;
@@ -589,23 +589,23 @@ static int toNextCmdLine(struct cmd_state *c)
 		else if (!strcmp(pCmdTrigCrit,"<"))		c->trigCrit = crit_LT;
 		else if (!strcmp(pCmdTrigCrit,"gt"))	c->trigCrit = crit_GT;
 		else if (!strcmp(pCmdTrigCrit,">"))		c->trigCrit = crit_GT;
-		else { fprintf(stderr, "error parsing expr in line %d of command file!\n", c->lineNo); continue; }
+		else { printf( "error parsing expr in line %d of command file!\n", c->lineNo); continue; }
 
 		pCmdLevel = strtok(NULL, delim);
-		if (!pCmdLevel) { fprintf(stderr, "error parsing level in line %d of command file!\n", c->lineNo); continue; }
+		if (!pCmdLevel) { printf( "error parsing level in line %d of command file!\n", c->lineNo); continue; }
 		c->refLevel = atof(trim(pCmdLevel));
 
 		pCmdTol = strtok(NULL, delim);
-		if (!pCmdTol) { fprintf(stderr, "error parsing tolerance in line %d of command file!\n", c->lineNo); continue; }
+		if (!pCmdTol) { printf( "error parsing tolerance in line %d of command file!\n", c->lineNo); continue; }
 		c->refLevelTol = atof(trim(pCmdTol));
 
 		pCmdNumMeas = strtok(NULL, delim);
-		if (!pCmdNumMeas) { fprintf(stderr, "error parsing #measurements in line %d of command file!\n", c->lineNo); continue; }
+		if (!pCmdNumMeas) { printf( "error parsing #measurements in line %d of command file!\n", c->lineNo); continue; }
 		c->numMeas = atoi(trim(pCmdNumMeas));
-		if (c->numMeas <= 0) { fprintf(stderr, "warning: fixed #measurements from %d to 10 in line %d of command file!\n", c->numMeas, c->lineNo); c->numMeas=10; }
+		if (c->numMeas <= 0) { printf( "warning: fixed #measurements from %d to 10 in line %d of command file!\n", c->numMeas, c->lineNo); c->numMeas=10; }
 
 		pCmdNumBlockTrigger = strtok(NULL, delim);
-		if (!pCmdNumBlockTrigger) { fprintf(stderr, "error parsing #blockTrigger in line %d of command file!\n", c->lineNo); continue; }
+		if (!pCmdNumBlockTrigger) { printf( "error parsing #blockTrigger in line %d of command file!\n", c->lineNo); continue; }
 		c->numBlockTrigger = atoi(trim(pCmdNumBlockTrigger));
 
 		c->command = strtok(NULL, delim);
@@ -1236,7 +1236,7 @@ void full_demod(struct demod_state *d)
 		if ( printBlockLen && verbosity ) {
 			printf("block length for rms after decimation is %d samples\n", d->lp_len);
 			if ( d->lp_len < 128 )
-				fprintf(stderr, "\n  WARNING: increase block length with option -W\n\n");
+				printf( "\n  WARNING: increase block length with option -W\n\n");
 			--printBlockLen;
 		}
 		if (!c->numSummed)
@@ -1516,18 +1516,18 @@ static void *controller_thread_fn(void *arg)
 				if (c->gain == AUTO_GAIN) {
 					r = rtlsdr_set_tuner_gain_mode(dongle.dev, 0);
 					if (r != 0)
-						fprintf(stderr, "WARNING: Failed to set automatic tuner gain.\n");
+						printf( "WARNING: Failed to set automatic tuner gain.\n");
 					else
 						c->prevGain = c->gain;
 				} else {
 					c->gain = nearest_gain(dongle.dev, c->gain);
 					r = rtlsdr_set_tuner_gain_mode(dongle.dev, 1);
 					if (r < 0)
-						fprintf(stderr, "WARNING: Failed to enable manual gain.\n");
+						printf( "WARNING: Failed to enable manual gain.\n");
 					else {
 						r = rtlsdr_set_tuner_gain(dongle.dev, c->gain);
 						if (r != 0)
-							fprintf(stderr, "WARNING: Failed to set tuner gain.\n");
+							printf( "WARNING: Failed to set tuner gain.\n");
 						else
 							c->prevGain = c->gain;
 					}
@@ -1537,14 +1537,14 @@ static void *controller_thread_fn(void *arg)
 			if (c->prevBandwidth != dongle.bandwidth) {
 				r = rtlsdr_set_tuner_bandwidth(dongle.dev, dongle.bandwidth);
 				if (r < 0)
-					fprintf(stderr, "WARNING: Failed to set bandwidth.\n");
+					printf( "WARNING: Failed to set bandwidth.\n");
 				else
 					c->prevBandwidth != dongle.bandwidth;
 			}
 			/* 4- Set ADC samplerate *
 			r = rtlsdr_set_sample_rate(dongle.dev, dongle.rate);
 			if (r < 0)
-				fprintf(stderr, "WARNING: Failed to set sample rate.\n");
+				printf( "WARNING: Failed to set sample rate.\n");
 			*/
 
 			c->levelSum = 0;
@@ -1675,17 +1675,17 @@ void controller_cleanup(struct controller_state *s)
 void sanity_checks(void)
 {
 	if (controller.freq_len == 0) {
-		fprintf(stderr, "Please specify a frequency.\n");
+		printf( "Please specify a frequency.\n");
 		exit(1);
 	}
 
 	if (controller.freq_len >= FREQUENCIES_LIMIT) {
-		fprintf(stderr, "Too many channels, maximum %i.\n", FREQUENCIES_LIMIT);
+		printf( "Too many channels, maximum %i.\n", FREQUENCIES_LIMIT);
 		exit(1);
 	}
 
 	if (controller.freq_len > 1 && demod.squelch_level == 0) {
-		fprintf(stderr, "Please specify a squelch level.  Required for scanning multiple frequencies.\n");
+		printf( "Please specify a squelch level.  Required for scanning multiple frequencies.\n");
 		exit(1);
 	}
 
@@ -1760,10 +1760,10 @@ int main(int argc, char **argv)
 			demod.rate_out2 = (int)atofs(optarg);
 			break;
 		case 'o':
-			fprintf(stderr, "Warning: -o is very buggy\n");
+			printf( "Warning: -o is very buggy\n");
 			demod.post_downsample = (int)atof(optarg);
 			if (demod.post_downsample < 1 || demod.post_downsample > MAXIMUM_OVERSAMPLE) {
-				fprintf(stderr, "Oversample must be between 1 and %i\n", MAXIMUM_OVERSAMPLE);}
+				printf( "Oversample must be between 1 and %i\n", MAXIMUM_OVERSAMPLE);}
 			break;
 		case 't':
 			demod.conseq_squelch = (int)atof(optarg);
@@ -1905,7 +1905,7 @@ int main(int argc, char **argv)
 
 	r = rtlsdr_open(&dongle.dev, (uint32_t)dongle.dev_index);
 	if (r < 0) {
-		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dongle.dev_index);
+		printf( "Failed to open rtlsdr device #%d.\n", dongle.dev_index);
 		exit(1);
 	}
 #ifndef _WIN32
@@ -1960,7 +1960,7 @@ int main(int argc, char **argv)
 				printf("%s%.1f", (in_bw==1 ? "" : ", "), out_bw/1000.0 );
 			last_bw = out_bw;
 		}
-		fprintf(stderr,"\n");
+		printf("\n");
 	}
 
 	if (rtlOpts) {
@@ -1975,7 +1975,7 @@ int main(int argc, char **argv)
 	} else {
 		output.file = fopen(output.filename, "wb");
 		if (!output.file) {
-			fprintf(stderr, "Failed to open %s\n", output.filename);
+			printf( "Failed to open %s\n", output.filename);
 			exit(1);
 		}
 		else
@@ -2006,9 +2006,9 @@ int main(int argc, char **argv)
 	}
 
 	if (do_exit) {
-		fprintf(stderr, "\nUser cancel, exiting...\n");}
+		printf( "\nUser cancel, exiting...\n");}
 	else {
-		fprintf(stderr, "\nLibrary error %d, exiting...\n", r);}
+		printf( "\nLibrary error %d, exiting...\n", r);}
 
 	rtlsdr_cancel_async(dongle.dev);
 	pthread_join(dongle.thread, NULL);

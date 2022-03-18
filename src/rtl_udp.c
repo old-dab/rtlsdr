@@ -115,7 +115,7 @@ BOOL WINAPI
 sighandler(int signum)
 {
 	if (CTRL_C_EVENT == signum) {
-		fprintf(stderr, "Signal caught, exiting!\n");
+		printf( "Signal caught, exiting!\n");
 		do_exit = 1;
 		rtlsdr_cancel_async(dev);
 		return TRUE;
@@ -125,7 +125,7 @@ sighandler(int signum)
 #else
 static void sighandler(int signum)
 {
-	fprintf(stderr, "Signal caught, exiting!\n");
+	printf( "Signal caught, exiting!\n");
 	rtlsdr_cancel_async(dev);
 	do_exit = 1;
 }
@@ -573,7 +573,7 @@ int main(int argc, char **argv)
 
 	rtlsdr_open(&dev, (uint32_t)dev_index);
 	if (NULL == dev) {
-	fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
+	printf( "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
 
@@ -596,7 +596,7 @@ int main(int argc, char **argv)
 	/* Set the sample rate */
 	r = rtlsdr_set_sample_rate(dev, samp_rate);
 	if (r < 0)
-		fprintf(stderr, "WARNING: Failed to set sample rate.\n");
+		printf( "WARNING: Failed to set sample rate.\n");
 
 	/* Set direct sampling with threshold */
 	rtlsdr_set_ds_mode(dev, ds_mode, ds_threshold);
@@ -604,7 +604,7 @@ int main(int argc, char **argv)
 	/* Set the frequency */
 	r = rtlsdr_set_center_freq(dev, frequency);
 	if (r < 0)
-		fprintf(stderr, "WARNING: Failed to set center freq.\n");
+		printf( "WARNING: Failed to set center freq.\n");
 	else
 		printf("Tuned to %i Hz.\n", frequency);
 
@@ -612,17 +612,17 @@ int main(int argc, char **argv)
 		 /* Enable automatic gain */
 		r = rtlsdr_set_tuner_gain_mode(dev, 0);
 		if (r < 0)
-			fprintf(stderr, "WARNING: Failed to enable automatic gain.\n");
+			printf( "WARNING: Failed to enable automatic gain.\n");
 	} else {
 		/* Enable manual gain */
 		r = rtlsdr_set_tuner_gain_mode(dev, 1);
 		if (r < 0)
-			fprintf(stderr, "WARNING: Failed to enable manual gain.\n");
+			printf( "WARNING: Failed to enable manual gain.\n");
 
 		/* Set the tuner gain */
 		r = rtlsdr_set_tuner_gain(dev, gain);
 		if (r < 0)
-			fprintf(stderr, "WARNING: Failed to set tuner gain.\n");
+			printf( "WARNING: Failed to set tuner gain.\n");
 		else
 			printf("Tuner gain set to %f dB.\n", gain/10.0);
 	}
@@ -636,7 +636,7 @@ int main(int argc, char **argv)
 	/* Reset endpoint before we start reading from it (mandatory) */
 	r = rtlsdr_reset_buffer(dev);
 	if (r < 0)
-		fprintf(stderr, "WARNING: Failed to reset buffers.\n");
+		printf( "WARNING: Failed to reset buffers.\n");
 
 	pthread_mutex_init(&ll_mutex, NULL);
 	pthread_cond_init(&cond, NULL);
@@ -712,7 +712,7 @@ int main(int argc, char **argv)
 
 		r = sendto(s, (const char *)&dongle_info, sizeof(dongle_info), 0, (struct sockaddr *)&remote, sizeof(remote));
 		if (sizeof(dongle_info) != r)
-			fprintf(stderr, "failed to send dongle information\n");
+			printf( "failed to send dongle information\n");
 
 		pthread_attr_init(&attr);
 		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);

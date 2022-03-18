@@ -564,7 +564,7 @@ static int List_Devices(int index, struct found_device *found)
                                     DIGCF_ALLCLASSES | DIGCF_PRESENT);
 	if(DeviceInfoSet == INVALID_HANDLE_VALUE)
 	{
-		fprintf(stderr,"SetupDiGetClassDevs failed\n");
+		printf("SetupDiGetClassDevs failed\n");
 		return 0;
 	}
 
@@ -576,7 +576,7 @@ static int List_Devices(int index, struct found_device *found)
 		// Get the Device Instance ID
 		if (!SetupDiGetDeviceInstanceIdA(DeviceInfoSet, &DeviceInfoData, DeviceID, sizeof(DeviceID), NULL))
 		{
-			fprintf(stderr,"SetupDiGetDeviceInstanceId failed. ErrorCode:%08lXh\n", GetLastError());
+			printf("SetupDiGetDeviceInstanceId failed. ErrorCode:%08lXh\n", GetLastError());
 			continue;
 		}
 
@@ -603,7 +603,7 @@ static int List_Devices(int index, struct found_device *found)
 		// Get SPDRP_SERVICE
 		if (!SetupDiGetDeviceRegistryPropertyA(DeviceInfoSet, &DeviceInfoData, SPDRP_SERVICE, NULL, (PBYTE)Service, sizeof(Service)-1, NULL))
 		{
-			//fprintf(stderr,"SetupDiGetDeviceRegistryProperty SPDRP_SERVICE Failed. ErrorCode:%08lXh\n", GetLastError());
+			//printf("SetupDiGetDeviceRegistryProperty SPDRP_SERVICE Failed. ErrorCode:%08lXh\n", GetLastError());
 			continue;
 		}
 		if (_strnicmp(Service, "WinUSB", 6) != 0)
@@ -613,20 +613,20 @@ static int List_Devices(int index, struct found_device *found)
 		//	printf("%s %s\n", DeviceID, Service);
 		if (!SetupDiGetDeviceRegistryPropertyA(DeviceInfoSet, &DeviceInfoData, SPDRP_MFG, NULL, (PBYTE)Mfg, sizeof(Mfg)-1, NULL))
 		{
-			fprintf(stderr,"SetupDiGetDeviceRegistryProperty SPDRP_MFG Failed. ErrorCode:%08lXh\n", GetLastError());
+			printf("SetupDiGetDeviceRegistryProperty SPDRP_MFG Failed. ErrorCode:%08lXh\n", GetLastError());
 			continue;
 		}
 		hkeyDevInfo = SetupDiOpenDevRegKey(DeviceInfoSet, &DeviceInfoData, DICS_FLAG_GLOBAL, 0, DIREG_DEV, KEY_QUERY_VALUE);
 		if (hkeyDevInfo == INVALID_HANDLE_VALUE)
 		{
-			fprintf(stderr,"SetupDiOpenDevRegKey Failed. ErrorCode:%08lXh\n", GetLastError());
+			printf("SetupDiOpenDevRegKey Failed. ErrorCode:%08lXh\n", GetLastError());
 			continue;
 		}
 		length = sizeof(devInterfaceGuidArray);
 		memset(devInterfaceGuidArray,0,sizeof(devInterfaceGuidArray));
 		if(RegQueryValueExA(hkeyDevInfo, "DeviceInterfaceGUIDs", NULL, NULL, (LPBYTE)devInterfaceGuidArray, &length) != ERROR_SUCCESS)
 		{
-			fprintf(stderr,"RegQueryValueExA Failed. ErrorCode:%08lXh\n", GetLastError());
+			printf("RegQueryValueExA Failed. ErrorCode:%08lXh\n", GetLastError());
 			RegCloseKey(hkeyDevInfo);
 			continue;
 		}
@@ -674,13 +674,13 @@ static BOOL Open_Device(rtlsdr_dev_t *dev, char *DevicePath)
 						FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL);
 	if(dev->deviceHandle == INVALID_HANDLE_VALUE)
 	{
-		fprintf(stderr,"CreateFile failed\n");
+		printf("CreateFile failed\n");
 		return FALSE;
 	}
 	bResult = WinUsb_Initialize(dev->deviceHandle, &dev->devh);
 	if(!bResult)
 	{
-		fprintf(stderr,"WinUsb_Initialize failed\n");
+		printf("WinUsb_Initialize failed\n");
 		CloseHandle(dev->deviceHandle);
 	}
 	return bResult;
@@ -733,7 +733,7 @@ static uint8_t rtlsdr_read_reg(rtlsdr_dev_t *dev, uint16_t index, uint16_t addr)
 
 	int r = rtlsdr_read_array(dev, index, addr, &data, 1);
 	if (r != 1)
-		fprintf(stderr, "%s failed with %d\n", __FUNCTION__, r);
+		printf( "%s failed with %d\n", __FUNCTION__, r);
 
 	return data;
 }
@@ -751,7 +751,7 @@ static int rtlsdr_write_reg(rtlsdr_dev_t *dev, uint16_t index, uint16_t addr, ui
 	}
 	r = rtlsdr_write_array(dev, index, addr, data, len);
 	if (r < 0)
-		fprintf(stderr, "%s failed with %d\n", __FUNCTION__, r);
+		printf( "%s failed with %d\n", __FUNCTION__, r);
 
 	return r;
 }
@@ -796,7 +796,7 @@ uint16_t rtlsdr_demod_read_reg(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, 
 
 	int r = rtlsdr_read_array(dev, page, (addr << 8) | RTL2832_DEMOD_ADDR, data, len);
 	if (r != len)
-		fprintf(stderr, "%s failed with %d\n", __FUNCTION__, r);
+		printf( "%s failed with %d\n", __FUNCTION__, r);
 
 	if (len == 1)
 		return data[0];
@@ -820,7 +820,7 @@ int rtlsdr_demod_write_reg(rtlsdr_dev_t *dev, uint8_t page, uint16_t addr, uint1
 
 	r = rtlsdr_write_array(dev, page, addr, data, len);
 	if (r != len)
-		fprintf(stderr, "%s failed with %d\n", __FUNCTION__, r);
+		printf( "%s failed with %d\n", __FUNCTION__, r);
 
 	rtlsdr_demod_read_reg(dev, DUMMY_PAGE, DUMMY_ADDR, 1);
 
@@ -1045,7 +1045,7 @@ static int rtlsdr_demod_read_regs(rtlsdr_dev_t *dev, uint16_t page, uint16_t add
 {
 	int r = rtlsdr_read_array(dev, page, (addr << 8) | RTL2832_DEMOD_ADDR, data, len);
 	if (r != len)
-		fprintf(stderr, "%s failed with %d\n", __FUNCTION__, r);
+		printf( "%s failed with %d\n", __FUNCTION__, r);
 
 	return r;
 }
@@ -1140,7 +1140,7 @@ int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, int32_t freq)
 	tmp = if_freq & 0xff;
 	r |= rtlsdr_demod_write_reg(dev, 1, 0x1b, tmp, 1);
 
-	//fprintf(stderr, "if_freq=%d, %d, xtal=%u\n", freq, if_freq, rtl_xtal);
+	//printf( "if_freq=%d, %d, xtal=%u\n", freq, if_freq, rtl_xtal);
 	return r;
 }
 
@@ -1547,7 +1547,7 @@ int rtlsdr_set_sample_rate(rtlsdr_dev_t *dev, uint32_t samp_rate)
 	/* check if the rate is supported by the resampler */
 	if ((samp_rate <= 225000) || (samp_rate > 4096000) ||
 		 ((samp_rate > 300000) && (samp_rate <= 900000))) {
-		fprintf(stderr, "Invalid sample rate: %u Hz\n", samp_rate);
+		printf( "Invalid sample rate: %u Hz\n", samp_rate);
 		return -EINVAL;
 	}
 
@@ -1822,7 +1822,7 @@ static int get_string_descriptor_ascii(rtlsdr_dev_t *dev, uint8_t index, char *d
 	if(!WinUsb_GetDescriptor(dev->devh, USB_STRING_DESCRIPTOR_TYPE, index, 0,
 						buffer, sizeof(buffer), &LengthTransferred))
 	{
-		fprintf(stderr,"WinUsb_GetDescriptor Failed. ErrorCode:%08lXh\n", GetLastError());
+		printf("WinUsb_GetDescriptor Failed. ErrorCode:%08lXh\n", GetLastError());
 		return -1;
 	}
 	for(i=2; i<buffer[0]; i+=2)
@@ -1857,7 +1857,7 @@ int rtlsdr_get_usb_strings(rtlsdr_dev_t *dev, char *manufact, char *product, cha
 		if(!WinUsb_GetDescriptor(dev->devh, USB_DEVICE_DESCRIPTOR_TYPE, 0, 0,
 							buffer, sizeof(buffer), &LengthTransferred))
 		{
-			fprintf(stderr,"WinUsb_GetDescriptor Failed. ErrorCode:%08lXh\n", GetLastError());
+			printf("WinUsb_GetDescriptor Failed. ErrorCode:%08lXh\n", GetLastError());
 			return -1;
 		}
 		if(buffer[16] == 3)
@@ -2080,9 +2080,9 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 	r = libusb_open(device, &dev->devh);
 	if (r < 0) {
 		libusb_free_device_list(list, 1);
-		fprintf(stderr, "usb_open error %d\n", r);
+		printf( "usb_open error %d\n", r);
 		if(r == LIBUSB_ERROR_ACCESS)
-			fprintf(stderr, "Please fix the device permissions, e.g. "
+			printf( "Please fix the device permissions, e.g. "
 			"by installing the udev rules file rtl-sdr.rules\n");
 		goto err;
 	}
@@ -2095,11 +2095,11 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 		if (!libusb_detach_kernel_driver(dev->devh, 0)) {
 			printf("Detached kernel driver\n");
 		} else {
-			fprintf(stderr, "Detaching kernel driver failed!");
+			printf( "Detaching kernel driver failed!");
 			goto err;
 		}
 #else
-		fprintf(stderr, "\nKernel driver is active, or device is "
+		printf( "\nKernel driver is active, or device is "
 				"claimed by second instance of librtlsdr."
 				"\nIn the first case, please either detach"
 				" or blacklist the kernel module\n"
@@ -2110,13 +2110,13 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 
 	r = libusb_claim_interface(dev->devh, 0);
 	if (r < 0) {
-		fprintf(stderr, "usb_claim_interface error %d\n", r);
+		printf( "usb_claim_interface error %d\n", r);
 		goto err;
 	}
 
 	/* perform a dummy write, if it fails, reset the device */
 	if (rtlsdr_write_reg(dev, USBB, USB_SYSCTL, 0x09, 1) < 0) {
-		fprintf(stderr, "Resetting device...\n");
+		printf( "Resetting device...\n");
 		libusb_reset_device(dev->devh);
 	}
 #endif
@@ -2317,7 +2317,7 @@ demod_found:
 		rtlsdr_demod_write_reg(dev, 1, 0x15, 0x01, 1);
 		break;
 	case RTLSDR_TUNER_UNKNOWN:
-		fprintf(stderr, "No supported tuner found\n");
+		printf( "No supported tuner found\n");
 		rtlsdr_set_direct_sampling(dev, 1);
 		break;
 	default:
@@ -2383,7 +2383,7 @@ int rtlsdr_close(rtlsdr_dev_t *dev)
 		if (!libusb_attach_kernel_driver(dev->devh, 0))
 			printf("Reattached kernel driver\n");
 		else
-			fprintf(stderr, "Reattaching kernel driver failed!\n");
+			printf( "Reattaching kernel driver failed!\n");
 	}
 #endif
 	libusb_close(dev->devh);
@@ -2400,7 +2400,7 @@ int rtlsdr_reset_buffer(rtlsdr_dev_t *dev)
 		return -1;
 
 	if(!WinUsb_ResetPipe(dev->devh, EP_RX))
-		fprintf(stderr,"WinUsb_ResetPipe failed. ErrorCode: %08lXh\n", GetLastError());
+		printf("WinUsb_ResetPipe failed. ErrorCode: %08lXh\n", GetLastError());
 	return 0;
 }
 
@@ -2412,7 +2412,7 @@ int rtlsdr_read_sync(rtlsdr_dev_t *dev, void *buf, int len,  int *n_read)
 		return -1;
 	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x0000, 2);
 	if(!WinUsb_ReadPipe(dev->devh, EP_RX, buf, len, &bytesRead, NULL))
-		fprintf(stderr,"WinUsb_ReadPipe failed. ErrorCode: %08lXh\n",  GetLastError());
+		printf("WinUsb_ReadPipe failed. ErrorCode: %08lXh\n",  GetLastError());
 	*n_read = bytesRead;
 	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x1002, 2);
 	return 0;
@@ -2426,7 +2426,7 @@ static int rtlsdr_read_buffer(rtlsdr_dev_t *dev, uint8_t *xfer_buf, uint32_t buf
 		if (error != ERROR_IO_PENDING)
    		{
 	      	dev->async_cancel = 1;
-			fprintf(stderr,"WinUsb_ReadPipe failed. ErrorCode: %08lXh\n", error);
+			printf("WinUsb_ReadPipe failed. ErrorCode: %08lXh\n", error);
 			return 1;
 	  	}
 	}
@@ -2457,9 +2457,9 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 		buf_len = DEFAULT_BUF_LENGTH;
 
 	if(!WinUsb_ResetPipe(dev->devh, EP_RX))
-		fprintf(stderr,"WinUsb_ResetPipe failed. ErrorCode: %08lXh\n", GetLastError());
+		printf("WinUsb_ResetPipe failed. ErrorCode: %08lXh\n", GetLastError());
 	if(!WinUsb_SetPipePolicy(dev->devh, EP_RX, RAW_IO, 1, &policy))
-		fprintf(stderr,"WinUsb_GetPipePolicy failed. ErrorCode: %08lXh\n", GetLastError());
+		printf("WinUsb_GetPipePolicy failed. ErrorCode: %08lXh\n", GetLastError());
 
 	// Alloc async buffers
 	overlapped = malloc(buf_num * sizeof(OVERLAPPED *));
@@ -2508,7 +2508,7 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 			}
 			else
 			{
-				fprintf(stderr,"WinUsb_GetOverlappedResult failed. ErrorCode: %08lXh\n", GetLastError());
+				printf("WinUsb_GetOverlappedResult failed. ErrorCode: %08lXh\n", GetLastError());
 		      	dev->async_cancel = 1;
 				break;
 		  	}
@@ -2521,7 +2521,7 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 	// Stop transfers
 	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x1002, 2);
 	if(!WinUsb_AbortPipe(dev->devh, EP_RX))
-		fprintf(stderr,"WinUsb_AbortPipe failed. ErrorCode: %08lXh\n", GetLastError());
+		printf("WinUsb_AbortPipe failed. ErrorCode: %08lXh\n", GetLastError());
 
 	// Free the buffers
 	if (overlapped)
@@ -2583,7 +2583,7 @@ static void LIBUSB_CALL _libusb_callback(struct libusb_transfer *xfer)
 			LIBUSB_TRANSFER_NO_DEVICE == xfer->status) {
 			dev->dev_lost = 1;
 			rtlsdr_cancel_async(dev);
-			fprintf(stderr, "cb transfer status: %d, "
+			printf( "cb transfer status: %d, "
 				"canceling...\n", xfer->status);
 		}
 	}
@@ -2618,7 +2618,7 @@ static int _rtlsdr_alloc_async_buffers(rtlsdr_dev_t *dev)
 		dev->xfer_buf[i] = libusb_dev_mem_alloc(dev->devh, dev->xfer_buf_len);
 
 		if (!dev->xfer_buf[i]) {
-			fprintf(stderr, "Failed to allocate zero-copy "
+			printf( "Failed to allocate zero-copy "
 					"buffer for transfer %d\nFalling "
 					"back to buffers in userspace\n", i);
 
@@ -2737,7 +2737,7 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 
 		r = libusb_submit_transfer(dev->xfer[i]);
 		if (r < 0) {
-			fprintf(stderr, "Failed to submit transfer %i\n"
+			printf( "Failed to submit transfer %i\n"
 					"Please increase your allowed "
 					"usbfs buffer size with the "
 					"following command:\n"
@@ -2752,7 +2752,7 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 		r = libusb_handle_events_timeout_completed(dev->ctx, &tv,
 								 &dev->async_cancel);
 		if (r < 0) {
-			/*fprintf(stderr, "handle_events returned: %d\n", r);*/
+			/*printf( "handle_events returned: %d\n", r);*/
 			if (r == LIBUSB_ERROR_INTERRUPTED) /* stray signal */
 				continue;
 			break;
@@ -2893,7 +2893,7 @@ int rtlsdr_ir_query(rtlsdr_dev_t *d, uint8_t *buf, size_t buf_len)
 			ret = rtlsdr_write_reg_mask(d, init_tab[i].block, init_tab[i].reg,
 					init_tab[i].val, init_tab[i].mask);
 			if (ret < 0) {
-				fprintf(stderr, "write %zu reg %d %.4x %.2x %.2x failed\n", i, init_tab[i].block,
+				printf( "write %zu reg %d %.4x %.2x %.2x failed\n", i, init_tab[i].block,
 						init_tab[i].reg, init_tab[i].val, init_tab[i].mask);
 				goto err;
 			}
@@ -2912,7 +2912,7 @@ int rtlsdr_ir_query(rtlsdr_dev_t *d, uint8_t *buf, size_t buf_len)
 			// graceful exit
 		}
 		else
-			fprintf(stderr, "read IR_RX_IF unexpected: %.2x\n", buf[0]);
+			printf( "read IR_RX_IF unexpected: %.2x\n", buf[0]);
 
 		ret = 0;
 		goto exit;
@@ -2920,10 +2920,10 @@ int rtlsdr_ir_query(rtlsdr_dev_t *d, uint8_t *buf, size_t buf_len)
 
 	buf[0] = rtlsdr_read_reg(d, IRB, IR_RX_BC);
 	len = buf[0];
-	//fprintf(stderr, "read IR_RX_BC len=%d\n", len);
+	//printf( "read IR_RX_BC len=%d\n", len);
 
 	if (len > buf_len) {
-		//fprintf(stderr, "read IR_RX_BC too large for buffer, %lu > %lu\n", buf_len, buf_len);
+		//printf( "read IR_RX_BC too large for buffer, %lu > %lu\n", buf_len, buf_len);
 		goto exit;
 	}
 	if ((len != 6) && (len < 70)) //message is not complete
@@ -2958,7 +2958,7 @@ int rtlsdr_ir_query(rtlsdr_dev_t *d, uint8_t *buf, size_t buf_len)
 exit:
 	return ret;
 err:
-	fprintf(stderr,"failed=%d\n", ret);
+	printf("failed=%d\n", ret);
 	return ret;
 }
 
@@ -3068,11 +3068,11 @@ int rtlsdr_set_opt_string(rtlsdr_dev_t *dev, const char *opts, int verbose)
 		}
 		else {
 			if (verbose)
-				fprintf(stderr, "rtlsdr_set_opt_string(): parsed unknown option '%s'\n", optPart);
+				printf( "rtlsdr_set_opt_string(): parsed unknown option '%s'\n", optPart);
 			ret = -1;  // unknown option
 		}
 		if (verbose)
-			fprintf(stderr, "  application of option returned %d\n", ret);
+			printf( "  application of option returned %d\n", ret);
 		if (ret < 0)
 			retAll = ret;
 		optPart = strtok(NULL, ":,");

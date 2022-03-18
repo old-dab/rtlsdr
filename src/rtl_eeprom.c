@@ -66,7 +66,7 @@ void dump_config(rtlsdr_config_t *conf)
 
 void usage(void)
 {
-	fprintf(stderr,
+	printf(
 		"rtl_eeprom, an EEPROM programming tool for "
 		"RTL2832 based DVB-T receivers\n\n"
 		"Usage:\n"
@@ -101,7 +101,7 @@ int get_string_descriptor(int pos, uint8_t *data, char *str)
 	len = data[pos];
 
 	if (data[pos + 1] != 0x03)
-		fprintf(stderr, "Error: invalid string descriptor!\n");
+		printf( "Error: invalid string descriptor!\n");
 
 	for (i = 2; i < len; i += 2)
 		str[j++] = data[pos + i];
@@ -122,7 +122,7 @@ int set_string_descriptor(int pos, uint8_t *data, char *str)
 
 	while (str[i] != 0x00) {
 		if ((pos + j) >= 78) {
-			fprintf(stderr, "Error: string too long, truncated!\n");
+			printf( "Error: string too long, truncated!\n");
 			return -1;
 		}
 		data[pos + j++] = str[i++];
@@ -139,7 +139,7 @@ int parse_eeprom_to_conf(rtlsdr_config_t *conf, uint8_t *dat)
 	int pos;
 
 	if ((dat[0] != 0x28) || (dat[1] != 0x32))
-		fprintf(stderr, "Error: invalid RTL2832 EEPROM header!\n");
+		printf( "Error: invalid RTL2832 EEPROM header!\n");
 
 	conf->vendor_id = dat[2] | (dat[3] << 8);
 	conf->product_id = dat[4] | (dat[5] << 8);
@@ -349,7 +349,7 @@ int main(int argc, char **argv)
 
 	device_count = rtlsdr_get_device_count();
 	if (!device_count) {
-		fprintf(stderr, "No supported devices found.\n");
+		printf( "No supported devices found.\n");
 		exit(1);
 	}
 
@@ -360,7 +360,7 @@ int main(int argc, char **argv)
 
 	if(dev_index >= device_count)
 	{
-		fprintf(stderr, "No matching devices found.\n");
+		printf( "No matching devices found.\n");
 		exit(1);
 	}
 
@@ -370,7 +370,7 @@ int main(int argc, char **argv)
 
 	r = rtlsdr_open(&dev, dev_index);
 	if (r < 0) {
-		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
+		printf( "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
 
@@ -379,9 +379,9 @@ int main(int argc, char **argv)
 	r = rtlsdr_read_eeprom(dev, buf, 0, EEPROM_SIZE);
 	if (r < 0) {
 		if (r == -3)
-			fprintf(stderr, "No EEPROM has been found.\n");
+			printf( "No EEPROM has been found.\n");
 		else
-			fprintf(stderr, "Failed to read EEPROM, err %i.\n", r);
+			printf( "Failed to read EEPROM, err %i.\n", r);
 		goto exit;
 	}
 
@@ -392,15 +392,15 @@ int main(int argc, char **argv)
 	if (filename) {
 		file = fopen(filename, flash_file ? "rb" : "wb");
 		if (!file) {
-			fprintf(stderr, "Error opening file!\n");
+			printf( "Error opening file!\n");
 			goto exit;
 		}
 		if (flash_file) {
 			if (fread(buf, 1, sizeof(buf), file) != sizeof(buf))
-				fprintf(stderr, "Error reading file!\n");
+				printf( "Error reading file!\n");
 		} else {
 			if (fwrite(buf, 1, sizeof(buf), file) != sizeof(buf))
-				fprintf(stderr, "Short write, exiting!\n");
+				printf( "Short write, exiting!\n");
 			else
 				printf("\nDump to %s successful.\n", filename);
 		}
@@ -453,7 +453,7 @@ int main(int argc, char **argv)
 
 	r = rtlsdr_write_eeprom(dev, buf, 0, flash_file ? EEPROM_SIZE : 128);
 	if (r < 0)
-		fprintf(stderr, "Error while writing EEPROM: %i\n", r);
+		printf( "Error while writing EEPROM: %i\n", r);
 	else
 		printf("\nConfiguration successfully written.\n"
 				"Please replug the device for changes"
