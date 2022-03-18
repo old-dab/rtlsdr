@@ -32,9 +32,9 @@ LIST(APPEND rtlsdr_srcs
 # Setup shared library variant
 ########################################################################
 add_library(rtlsdr_shared SHARED ${rtlsdr_srcs})
-target_link_libraries(rtlsdr_shared ${LIBUSB_LIBRARIES} -s)
+target_link_libraries(rtlsdr_shared ${LIBUSB_LIBRARIES} -Wl,-s)
 if(WIN32)
-target_link_libraries(rtlsdr_shared -lsetupapi -lwinusb)
+target_link_libraries(rtlsdr_shared -lsetupapi -lwinusb ${CMAKE_THREAD_LIBS_INIT})
 endif()
 set_target_properties(rtlsdr_shared PROPERTIES DEFINE_SYMBOL "rtlsdr_EXPORTS")
 set_target_properties(rtlsdr_shared PROPERTIES OUTPUT_NAME rtlsdr)
@@ -45,7 +45,7 @@ set_target_properties(rtlsdr_shared PROPERTIES OUTPUT_NAME rtlsdr)
 add_library(rtlsdr_static STATIC ${rtlsdr_srcs})
 target_link_libraries(rtlsdr_static ${LIBUSB_LIBRARIES} -s)
 if(WIN32)
-target_link_libraries(rtlsdr_static -lsetupapi -lwinusb)
+target_link_libraries(rtlsdr_static -lsetupapi -lwinusb ${CMAKE_THREAD_LIBS_INIT})
 endif()
 set_property(TARGET rtlsdr_static APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
 if(NOT WIN32)
@@ -97,9 +97,10 @@ add_executable(rtl_ir rtl_ir.c)
 add_executable(rtl_eeprom rtl_eeprom.c)
 add_executable(rtl_adsb rtl_adsb.c)
 add_executable(rtl_power rtl_power.c)
+add_executable(rtl_file rtl_file.c)
 set(INSTALL_TARGETS rtlsdr_shared rtlsdr_static 
 	rtl_sdr rtl_tcp rtl_udp rtl_test rtl_fm 
-	rtl_ir rtl_eeprom rtl_adsb rtl_power 
+	rtl_ir rtl_eeprom rtl_adsb rtl_power rtl_file
 )
 
 target_link_libraries(rtl_sdr ${RTLSDR_TOOL_LIB} convenience_static
@@ -135,6 +136,9 @@ target_link_libraries(rtl_power ${RTLSDR_TOOL_LIB} convenience_static
     ${LIBUSB_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
 )
+target_link_libraries(rtl_file ${RTLSDR_TOOL_LIB} 
+    ${CMAKE_THREAD_LIBS_INIT}
+)
 
 if(UNIX)
 target_link_libraries(rtl_fm m)
@@ -160,6 +164,7 @@ else()
 target_link_libraries(rtl_tcp ws2_32)
 target_link_libraries(rtl_udp ws2_32)
 target_link_libraries(rtl_test)
+target_link_libraries(rtl_file ws2_32)
 endif()
 set_property(TARGET rtl_sdr APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
 set_property(TARGET rtl_tcp APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
@@ -170,6 +175,7 @@ set_property(TARGET rtl_ir APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
 set_property(TARGET rtl_eeprom APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
 set_property(TARGET rtl_adsb APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
 set_property(TARGET rtl_power APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
+set_property(TARGET rtl_file APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
 endif()
 
 ########################################################################
