@@ -180,6 +180,14 @@ RTLSDR_API int rtlsdr_set_freq_correction_100ppm(rtlsdr_dev_t *dev, int ppm);
  */
 RTLSDR_API int rtlsdr_get_freq_correction(rtlsdr_dev_t *dev);
 
+/*!
+ * Get actual frequency correction value of the device.
+ *
+ * \param dev the device handle given by rtlsdr_open()
+ * \return correction value in parts per 100 million (ppm)
+ */
+RTLSDR_API int rtlsdr_get_freq_correction_100ppm(rtlsdr_dev_t *dev);
+
 enum rtlsdr_tuner {
 	RTLSDR_TUNER_UNKNOWN = 0,
 	RTLSDR_TUNER_E4000,

@@ -1335,6 +1335,14 @@ int rtlsdr_get_freq_correction(rtlsdr_dev_t *dev)
 	return dev->corr / 100;
 }
 
+int rtlsdr_get_freq_correction_100ppm(rtlsdr_dev_t *dev)
+{
+	if (!dev)
+		return 0;
+
+	return dev->corr;
+}
+
 enum rtlsdr_tuner rtlsdr_get_tuner_type(rtlsdr_dev_t *dev)
 {
 	if (!dev)
