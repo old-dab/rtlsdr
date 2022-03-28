@@ -1000,7 +1000,7 @@ static int r82xx_get_signal_strength(struct r82xx_priv *priv, unsigned char* dat
 	uint8_t mixer_gain = (data[3] >> 4) & 0x0f;
 
 	/* set IMR_G */
-	if(priv->imr_done && (mixer_gain != priv->old_gain))
+	if(mixer_gain != priv->old_gain)
 	{
 		int rc = r82xx_write_reg_mask(priv, 0x08, priv->reg8[mixer_gain], 0x3f);
 		if(rc < 0)
@@ -1392,15 +1392,13 @@ static	uint8_t r82xx_calib_array[] = {
 static int r82xx_imr_callibrate(struct r82xx_priv *priv)
 {
 	int rc;
-	uint8_t i;
 	uint32_t applied_bw;
 	/*struct timeval tv;
 	uint64_t StartTime, EndTime;
 
 	gettimeofday(&tv, NULL);
 	StartTime = (uint64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;*/
-	for(i = 0; i < 16; i++)
-		priv->reg8[i] = 0;
+	memset(priv->reg8, 0, 16);
 
 	/* Initialize registers */
 	rc = r82xx_write(priv, 0x05, r82xx_calib_array, sizeof(r82xx_calib_array));
@@ -1412,7 +1410,6 @@ static int r82xx_imr_callibrate(struct r82xx_priv *priv)
 	if ((rc = r82xx_imr(priv, 1)) < 0) goto err;
 
 	priv->old_gain = 255;
-	priv->imr_done = 1;
 
 	/*gettimeofday(&tv, NULL);
 	EndTime = (uint64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
@@ -1431,15 +1428,38 @@ err:
  */
 int r82xx_init(struct r82xx_priv *priv)
 {
-	int rc;
+	int rc, i, checksum = 0;
+	uint8_t buf[16];
+	int offset = 0x80;
 
- 	if(priv->cfg->cal_imr)
+	//check if calibration is already stored
+	if ((rc = rtlsdr_read_eeprom(priv->rtl_dev, buf, offset, 15)) < 0)	goto err;
+	for(i=1; i<14; i++)
+		checksum += buf[i];
+	if((buf[0] != 14) || ((checksum & 0xff) != buf[14]) || (priv->cfg->cal_imr))
+	{
+		//no
  		if ((rc = r82xx_imr_callibrate(priv)) < 0) goto err;
+ 		checksum = 0;
+ 		buf[0] = 14;
+		memcpy(buf+1, priv->reg8, 13);
+		for(i = 0; i < 13; i++)
+			checksum += priv->reg8[i];
+		buf[14] = checksum & 0xff;
+		if ((rc = rtlsdr_write_eeprom(priv->rtl_dev, buf, offset, 15)) < 0)
+			goto err;
+	}
+ 	else
+ 	{
+		//yes
+		memcpy(priv->reg8, buf+1, 13);
+		for(i = 13; i < 16; i++)
+			priv->reg8[i] = priv->reg8[12];
+		priv->old_gain = 255;
+	}
 
 	/* Initialize registers */
-	rc = r82xx_write(priv, 0x05, r82xx_init_array, sizeof(r82xx_init_array));
-	if (rc < 0)
-		goto err;
+	if ((rc = r82xx_write(priv, 0x05, r82xx_init_array, sizeof(r82xx_init_array))) < 0) goto err;
 	priv->int_freq = 3570 * 1000;
 
 	if ((rc = r82xx_sysfreq_sel(priv, TUNER_DIGITAL_TV)) < 0) goto err;

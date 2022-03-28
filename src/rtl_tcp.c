@@ -157,6 +157,7 @@ void usage(void)
 		"\t[-d device index or serial (default: 0)]\n"
 		"\t[-f frequency to tune to [Hz]]\n"
 		"\t[-g gain in dB (default: 0 for auto)]\n"
+		"\t[-k re-kalibrate image rejection for R820T/R828D\n"
 		"\t[-l length of single buffer in units of 512 samples (default: 256)]\n"
 		"\t[-n max number of linked list buffers to keep (default: 500)]\n"
 		"\t[-o set offset tuning\n"
@@ -578,7 +579,7 @@ int main(int argc, char **argv)
 	int port_resp = 1;
 	int report_i2c = 1;
 	int do_exit_thrd_ctrl = 0;
-	int cal_imr = 1;
+	int cal_imr = 0;
 	uint32_t frequency = 100000000, samp_rate = 2048000;
 	enum rtlsdr_ds_mode ds_mode = RTLSDR_DS_IQ;
 	uint32_t ds_temp, ds_threshold = 0;
@@ -630,9 +631,9 @@ int main(int argc, char **argv)
 		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
 
 #ifdef DEBUG
-	while ((opt = getopt(argc, argv, "a:b:cd:f:g:l:n:op:us:vr:w:D:LITP:")) != -1) {
+	while ((opt = getopt(argc, argv, "a:b:cd:f:g:kl:n:op:us:vr:w:D:LITP:")) != -1) {
 #else
-	while ((opt = getopt(argc, argv, "a:b:cd:f:g:l:n:op:us:vr:w:D:TP:")) != -1) {
+	while ((opt = getopt(argc, argv, "a:b:cd:f:g:kl:n:op:us:vr:w:D:TP:")) != -1) {
 #endif
 		switch (opt) {
 		case 'a':
@@ -654,6 +655,9 @@ int main(int argc, char **argv)
 		case 'g':
 			gain = (int)(atof(optarg) * 10); /* tenths of a dB */
 			break;
+		case 'k':
+			++cal_imr;
+			break;
 		case 'l':
 			buf_len = 512 * atoi(optarg);
 			break;
@@ -668,8 +672,6 @@ int main(int argc, char **argv)
 			break;
 		case 'r':
 			port_resp = atoi(optarg);
-			if(port_resp == 0)
-				cal_imr = 0;
 			break;
 		case 's':
 			samp_rate = (uint32_t)atofs(optarg);
