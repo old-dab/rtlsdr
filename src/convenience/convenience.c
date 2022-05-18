@@ -149,7 +149,7 @@ int nearest_gain(rtlsdr_dev_t *dev, int target_gain)
 	int* gains;
 	r = rtlsdr_set_tuner_gain_mode(dev, 1);
 	if (r < 0) {
-		fprintf(stderr, "WARNING: Failed to enable manual gain.\n");
+		printf( "WARNING: Failed to enable manual gain.\n");
 		return r;
 	}
 	count = rtlsdr_get_tuner_gains(dev, NULL);
@@ -175,7 +175,7 @@ int verbose_set_frequency(rtlsdr_dev_t *dev, uint32_t frequency)
 	int r;
 	r = rtlsdr_set_center_freq(dev, frequency);
 	if (r < 0) {
-		fprintf(stderr, "WARNING: Failed to set center freq.\n");
+		printf( "WARNING: Failed to set center freq.\n");
 	} else {
 		printf("Tuned to %u Hz.\n", frequency);
 	}
@@ -187,7 +187,7 @@ int verbose_set_sample_rate(rtlsdr_dev_t *dev, uint32_t samp_rate)
 	int r;
 	r = rtlsdr_set_sample_rate(dev, samp_rate);
 	if (r < 0) {
-		fprintf(stderr, "WARNING: Failed to set sample rate.\n");
+		printf( "WARNING: Failed to set sample rate.\n");
 	} else {
 		printf("Sampling at %u S/s.\n", samp_rate);
 	}
@@ -201,7 +201,7 @@ int verbose_set_bandwidth(rtlsdr_dev_t *dev, uint32_t bandwidth)
 	/* r = rtlsdr_set_tuner_bandwidth(dev, bandwidth); */
 	r = rtlsdr_set_and_get_tuner_bandwidth(dev, bandwidth, &applied_bw, 1 /* =apply_bw */);
 	if (r < 0) {
-		fprintf(stderr, "WARNING: Failed to set bandwidth.\n");
+		printf( "WARNING: Failed to set bandwidth.\n");
 	} else if (bandwidth > 0) {
 		if (applied_bw)
 			printf("Bandwidth parameter %u Hz resulted in %u Hz.\n", bandwidth, applied_bw);
@@ -218,7 +218,7 @@ int verbose_direct_sampling(rtlsdr_dev_t *dev, int on)
 	int r;
 	r = rtlsdr_set_direct_sampling(dev, on);
 	if (r != 0) {
-		fprintf(stderr, "WARNING: Failed to set direct sampling mode.\n");
+		printf( "WARNING: Failed to set direct sampling mode.\n");
 		return r;
 	}
 	if (on == 0) {
@@ -236,11 +236,11 @@ int verbose_offset_tuning(rtlsdr_dev_t *dev)
 	r = rtlsdr_set_offset_tuning(dev, 1);
 	if (r != 0) {
 		if ( r == -2 )
-			fprintf(stderr, "WARNING: Failed to set offset tuning: tuner doesn't support offset tuning!\n");
+			printf( "WARNING: Failed to set offset tuning: tuner doesn't support offset tuning!\n");
 		else if ( r == -3 )
-			fprintf(stderr, "WARNING: Failed to set offset tuning: direct sampling not combinable with offset tuning!\n");
+			printf( "WARNING: Failed to set offset tuning: direct sampling not combinable with offset tuning!\n");
 		else
-			fprintf(stderr, "WARNING: Failed to set offset tuning.\n");
+			printf( "WARNING: Failed to set offset tuning.\n");
 	} else {
 		printf("Offset tuning mode enabled.\n");
 	}
@@ -252,7 +252,7 @@ int verbose_auto_gain(rtlsdr_dev_t *dev)
 	int r;
 	r = rtlsdr_set_tuner_gain_mode(dev, 0);
 	if (r != 0) {
-		fprintf(stderr, "WARNING: Failed to enable automatic gain.\n");
+		printf( "WARNING: Failed to enable automatic gain.\n");
 	} else {
 		printf("Tuner gain set to automatic.\n");
 	}
@@ -264,12 +264,12 @@ int verbose_gain_set(rtlsdr_dev_t *dev, int gain)
 	int r;
 	r = rtlsdr_set_tuner_gain_mode(dev, 1);
 	if (r < 0) {
-		fprintf(stderr, "WARNING: Failed to enable manual gain.\n");
+		printf( "WARNING: Failed to enable manual gain.\n");
 		return r;
 	}
 	r = rtlsdr_set_tuner_gain(dev, gain);
 	if (r != 0) {
-		fprintf(stderr, "WARNING: Failed to set tuner gain.\n");
+		printf( "WARNING: Failed to set tuner gain.\n");
 	} else {
 		printf("Tuner gain set to %0.2f dB.\n", gain/10.0);
 	}
@@ -283,7 +283,7 @@ int verbose_ppm_set(rtlsdr_dev_t *dev, float ppm_error)
 		return 0;}
 	r = rtlsdr_set_freq_correction_100ppm(dev, (int)(ppm_error*100.0));
 	if (r < 0) {
-		fprintf(stderr, "WARNING: Failed to set ppm error.\n");
+		printf( "WARNING: Failed to set ppm error.\n");
 	} else {
 		printf("Tuner error set to %0.2f ppm.\n", ppm_error);
 	}
@@ -295,7 +295,7 @@ int verbose_reset_buffer(rtlsdr_dev_t *dev)
 	int r;
 	r = rtlsdr_reset_buffer(dev);
 	if (r < 0) {
-		fprintf(stderr, "WARNING: Failed to reset buffers.\n");}
+		printf( "WARNING: Failed to reset buffers.\n");}
 	return r;
 }
 
@@ -305,51 +305,61 @@ int verbose_device_search(char *s)
 	char *s2;
 	char vendor[256], product[256], serial[256];
 	device_count = rtlsdr_get_device_count();
-	if (!device_count) {
+	if (!device_count)
+	{
 		printf("No supported devices found.\n");
 		return -1;
 	}
 	printf("Found %d device(s):\n", device_count);
-	for (i = 0; i < device_count; i++) {
-		rtlsdr_get_device_usb_strings(i, vendor, product, serial);
+	for (i = 0; i < device_count; i++)
+	{
+		if(rtlsdr_get_device_usb_strings(i, vendor, product, serial) < 0)
+			continue;
 		printf("  %d:  %s, %s, SN: %s\n", i, vendor, product, serial);
 	}
 	printf("\n");
 	/* does string look like raw id number */
 	device = (int)strtol(s, &s2, 0);
-	if (s2[0] == '\0' && device >= 0 && device < device_count) {
+	if (s2[0] == '\0' && device >= 0 && device < device_count)
+	{
 		printf("Using device %d: %s\n",
 			device, rtlsdr_get_device_name((uint32_t)device));
 		return device;
 	}
 	/* does string exact match a serial */
-	for (i = 0; i < device_count; i++) {
-		rtlsdr_get_device_usb_strings(i, vendor, product, serial);
-		if (strcmp(s, serial) != 0) {
-			continue;}
+	for (i = 0; i < device_count; i++)
+	{
+		if(rtlsdr_get_device_usb_strings(i, vendor, product, serial) < 0)
+			continue;
+		if (strcmp(s, serial) != 0)
+			continue;
 		device = i;
 		printf("Using device %d: %s\n",
 			device, rtlsdr_get_device_name((uint32_t)device));
 		return device;
 	}
 	/* does string prefix match a serial */
-	for (i = 0; i < device_count; i++) {
-		rtlsdr_get_device_usb_strings(i, vendor, product, serial);
-		if (strncmp(s, serial, strlen(s)) != 0) {
-			continue;}
+	for (i = 0; i < device_count; i++)
+	{
+		if(rtlsdr_get_device_usb_strings(i, vendor, product, serial) < 0)
+			continue;
+		if (strncmp(s, serial, strlen(s)) != 0)
+			continue;
 		device = i;
 		printf("Using device %d: %s\n",
 			device, rtlsdr_get_device_name((uint32_t)device));
 		return device;
 	}
 	/* does string suffix match a serial */
-	for (i = 0; i < device_count; i++) {
-		rtlsdr_get_device_usb_strings(i, vendor, product, serial);
+	for (i = 0; i < device_count; i++)
+	{
+		if(rtlsdr_get_device_usb_strings(i, vendor, product, serial) < 0)
+			continue;
 		offset = strlen(serial) - strlen(s);
-		if (offset < 0) {
-			continue;}
-		if (strncmp(s, serial+offset, strlen(s)) != 0) {
-			continue;}
+		if (offset < 0)
+			continue;
+		if (strncmp(s, serial+offset, strlen(s)) != 0)
+			continue;
 		device = i;
 		printf("Using device %d: %s\n",
 			device, rtlsdr_get_device_name((uint32_t)device));
