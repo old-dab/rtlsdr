@@ -90,6 +90,7 @@ target_link_libraries(convenience_static
 ########################################################################
 add_executable(rtl_sdr rtl_sdr.c convenience/wavewrite.c)
 add_executable(rtl_tcp rtl_tcp.c controlThread.c)
+add_executable(rtl2_tcp rtl2_tcp.c controlThread2.c)
 add_executable(rtl_udp rtl_udp.c)
 add_executable(rtl_test rtl_test.c)
 add_executable(rtl_fm rtl_fm.c convenience/wavewrite.c)
@@ -99,7 +100,7 @@ add_executable(rtl_adsb rtl_adsb.c)
 add_executable(rtl_power rtl_power.c)
 add_executable(rtl_file rtl_file.c)
 set(INSTALL_TARGETS rtlsdr_shared rtlsdr_static 
-	rtl_sdr rtl_tcp rtl_udp rtl_test rtl_fm 
+	rtl_sdr rtl_tcp rtl2_tcp rtl_udp rtl_test rtl_fm 
 	rtl_ir rtl_eeprom rtl_adsb rtl_power rtl_file
 )
 
@@ -108,6 +109,9 @@ target_link_libraries(rtl_sdr ${RTLSDR_TOOL_LIB} convenience_static
     ${CMAKE_THREAD_LIBS_INIT}
 )
 target_link_libraries(rtl_tcp ${RTLSDR_TOOL_LIB} convenience_static
+    ${CMAKE_THREAD_LIBS_INIT}
+)
+target_link_libraries(rtl2_tcp ${RTLSDR_TOOL_LIB} convenience_static
     ${CMAKE_THREAD_LIBS_INIT}
 )
 target_link_libraries(rtl_test ${RTLSDR_TOOL_LIB} convenience_static
@@ -146,6 +150,7 @@ target_link_libraries(rtl_ir m)
 target_link_libraries(rtl_adsb m)
 target_link_libraries(rtl_power m)
 target_link_libraries(rtl_tcp m)
+target_link_libraries(rtl2_tcp m)
 target_link_libraries(rtl_test m)
 endif()
 
@@ -153,6 +158,7 @@ if(WIN32)
 if(MSVC)
 target_link_libraries(rtl_sdr libgetopt_static)
 target_link_libraries(rtl_tcp ws2_32 libgetopt_static)
+target_link_libraries(rtl2_tcp ws2_32 libgetopt_static)
 target_link_libraries(rtl_udp ws2_32 libgetopt_static)
 target_link_libraries(rtl_test libgetopt_static)
 target_link_libraries(rtl_fm libgetopt_static)
@@ -162,12 +168,14 @@ target_link_libraries(rtl_adsb libgetopt_static)
 target_link_libraries(rtl_power libgetopt_static)
 else()
 target_link_libraries(rtl_tcp ws2_32)
+target_link_libraries(rtl2_tcp ws2_32)
 target_link_libraries(rtl_udp ws2_32)
 target_link_libraries(rtl_test)
 target_link_libraries(rtl_file ws2_32)
 endif()
 set_property(TARGET rtl_sdr APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
 set_property(TARGET rtl_tcp APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
+set_property(TARGET rtl2_tcp APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
 set_property(TARGET rtl_udp APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
 set_property(TARGET rtl_test APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
 set_property(TARGET rtl_fm APPEND PROPERTY COMPILE_DEFINITIONS "rtlsdr_STATIC" )
