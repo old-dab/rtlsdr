@@ -64,13 +64,26 @@ enum RTL_TCP_COMMANDS {
     SET_TUNER_BW_IF_CENTER    = 0x45,   /* freq from SET_FREQUENCY stays in center;
                                          * the bandwidth (from SET_TUNER_BANDWIDTH)
                                          * is set to be centered at given IF frequency */
-    //SET_TUNER_AGC_VARIANT     = 0x46,   /* set tuner agc algorithm/variant */
     SET_SIDEBAND              = 0x46,   /* Mixer Sideband for R820T */
     REPORT_I2C_REGS           = 0x48,   /* perodically report I2C registers
                                          * - if reverse channel is enabled */
     SET_DITHERING			  = 0x49,   /* Enable or disable frequency dithering for R820T */
-	SET_001_PPM				  = 0x4A	/* Set frequency correction in multiples of 0.01 ppm */
+	SET_001_PPM				  = 0x4A,	/* Set frequency correction in multiples of 0.01 ppm */
+    CMD_SET_LNA_STATE     	  = 0x4B,   // 0: most sensitive, 8: least sensitive
+    CMD_SET_REQUEST_ALL_SERIALS = 0x80, // request for all serials to be transmitted via back channel
+    CMD_SET_SELECT_SERIAL 	  = 0x81    // value is four bytes CRC-32 of the requested serial number
 };
+
+enum eCommState
+{
+	ST_IDLE = 0
+	, ST_SERIALS_REQUESTED
+	, ST_DEVICE_CREATED
+	, ST_WELCOME_SENT
+	, ST_DEVICE_RELEASED
+};
+
+#define MAX_DEVICES 6
 
 #ifdef __cplusplus
 }
