@@ -912,7 +912,7 @@ int main(int argc, char **argv)
 
 		while(CommState != ST_WELCOME_SENT)
 		{
-			Sleep(10);
+			usleep(10000);
 			if(do_exit) break;
 		}
 		r = pthread_create(&send_thread, &attr, sendStream, NULL);

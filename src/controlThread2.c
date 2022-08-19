@@ -100,12 +100,12 @@ ctrl_thread_data_t ctrl_thread_data;
 /// <remark>
 /// One byte indication
 /// Two bytes length, the length of the following value(s)
-int prepareIntCommand(BYTE* tx, int startIx, int indic, int value, int length)
+int prepareIntCommand(uint8_t* tx, int startIx, int indic, int value, int length)
 {
 	//Big Endian / Network Byte Order
 	int ix = startIx;
 
-	tx[ix++] = (BYTE)(indic & 0xff);
+	tx[ix++] = (uint8_t)(indic & 0xff);
 	txbuf[ix++] = (length >> 8) & 0xff;
 	txbuf[ix++] = length & 0xff;
 	switch (length)
@@ -126,12 +126,12 @@ int prepareIntCommand(BYTE* tx, int startIx, int indic, int value, int length)
 	return ix;
 }
 
-int prepareStringCommand(BYTE* tx, int startIx, int indic, BYTE* value, int length )
+int prepareStringCommand(uint8_t* tx, int startIx, int indic, uint8_t* value, int length )
 {
 	//Big Endian / Network Byte Order
 	int ix = startIx;
 
-	tx[ix++] = (BYTE)(indic & 0xff);
+	tx[ix++] = (uint8_t)(indic & 0xff);
 	txbuf[ix++] = (length >> 8) & 0xff;
 	txbuf[ix++] = length & 0xff;
 
@@ -168,10 +168,10 @@ uint32_t calcCrcVal(uint8_t inp[], int length, uint32_t initialValue, int finalI
     return crc;
 }
 
-int prepareSerialsList(BYTE* buf)
+int prepareSerialsList(uint8_t* buf)
 {
 	char vendor[256], product[256], serial[256];
-	BYTE* p = buf;
+	uint8_t* p = buf;
 	const int SERLEN = 64;
 	char SerNo[SERLEN];
 
@@ -294,8 +294,8 @@ void *ctrl_thread_fn(void *arg)
 			break;
 
 		case ST_DEVICE_CREATED:
-			len = prepareStringCommand(txbuf, len, IND_MAGIC_STRING, (BYTE*)"RTL0", 4);
-			len = prepareStringCommand(txbuf, len, IND_RX_STRING,    (BYTE*)"RTL0", 4);
+			len = prepareStringCommand(txbuf, len, IND_MAGIC_STRING, (uint8_t*)"RTL0", 4);
+			len = prepareStringCommand(txbuf, len, IND_RX_STRING,    (uint8_t*)"RTL0", 4);
 			len = prepareIntCommand(txbuf, len, IND_RX_TYPE, 5, 1);
 			len = prepareIntCommand(txbuf, len, IND_BIT_WIDTH, 1, 1);
 			len = prepareIntCommand(txbuf, len, IND_WELCOME, 1, 1);
