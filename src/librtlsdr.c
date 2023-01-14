@@ -1045,19 +1045,9 @@ static int rtlsdr_deinit_baseband(rtlsdr_dev_t *dev)
 }
 
 #ifdef DEBUG
-static int rtlsdr_demod_read_regs(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, uint8_t *data, uint8_t len)
-{
-	int r = rtlsdr_read_array(dev, page, (addr << 8) | RTL2832_DEMOD_ADDR, data, len);
-	if (r != len)
-		printf("%s failed with %d\n", __FUNCTION__, r);
-
-	return r;
-}
-
 void print_demod_register(rtlsdr_dev_t *dev, uint8_t page)
 {
-	unsigned char data[16];
-	int i, j, k;
+	int i, j;
 	int reg = 0;
 
 	printf("Page %d\n", page);
@@ -1065,16 +1055,12 @@ void print_demod_register(rtlsdr_dev_t *dev, uint8_t page)
 	for(i=0; i<16; i++)
 	{
 		printf("%02x: ", reg);
-		for(j=0; j<4; j++)
-		{
-			rtlsdr_demod_read_regs(dev, page, reg+j, data, 4);
-			for(k=0; k<4; k++)
-				printf("%02x ", data[k]);
-			reg += 4;
-		}
+		for(j=0; j<16; j++)
+			printf("%02x ", rtlsdr_demod_read_reg(dev, page, reg++, 1));
 		printf("\n");
 	}
 }
+
 
 void print_rom(rtlsdr_dev_t *dev)
 {
