@@ -119,6 +119,7 @@ static	float ppm_error = 0;
 static	uint32_t bandwidth = 0;
 static	int enable_biastee = 0;
 static volatile int ctrlC_exit = 0;
+extern int tuner_gain;
 
 int sendBuffer(SOCKET socket, const char *txbuf, int len, volatile int *do_exit)
 {
@@ -252,11 +253,11 @@ static void show_adc_level(uint8_t *buf, int len, struct iq_state *iq)
 		dbi = 20 * log10(U);
 		if(dbi >= iq->dbi+0.01f || dbi <= iq->dbi-0.01f)
 		{
-			printf("I = %.1f mV = %.2f dBmV ", U, dbi);
+			printf("U = %.1f mV = %.2f dBmV", U, dbi);
 			if(overflow > 10)
-				printf("overflow!\n");
+				printf(" overflow!\n");
 			else
-				printf("\n");
+				printf(", Input = %.1f dBm\n", dbi-47.0-tuner_gain/10.0);
 			iq->dbi = dbi;
 		}
 		iq->plot_count = 0;
@@ -272,6 +273,7 @@ void usage(void)
 		"\t[-c correct I/Q-Ratio\n"
 		"\t[-f frequency to tune to [Hz]]\n"
 		"\t[-g gain in dB (default: 0 for auto)]\n"
+		"\t[-k re-kalibrate image rejection for R820T/R828D\n"
 		"\t[-l length of single buffer in units of 512 samples (default: 256)]\n"
 		"\t[-n max number of linked list buffers to keep (default: 500)]\n"
 		"\t[-o set offset tuning\n"
@@ -331,7 +333,7 @@ static void iqBalance(uint8_t *buf, int len, struct iq_state *iq)
         iq->levelQ += iq->ratio * (fabsf((float)buf[pos+1]-DC_OFFSET) - iq->levelQ);
 	}
 	iq_ratio = iq->levelI / iq->levelQ;
-	//printf("I = %f, Q = %f, I/Q = %f%%\n", iq->levelI, iq->levelQ, iq_ratio);
+	//printf("I = %f, Q = %f, I/Q = %f%%, len = %d\n", iq->levelI, iq->levelQ, iq_ratio, len);
 	if(iq_ratio > 1.01)
 	{
 	    for (pos = 0; pos < len; pos+=2)
@@ -673,7 +675,7 @@ static void *kb_thread_fn(void *arg)
 			}
 		else if((len == 6) && (keybuf[0] == 'w'))
 		{
-			int val, page, adr;
+			unsigned int val, page, adr;
 			if (sscanf(keybuf+1,"%x",&val) == 1)
 			{
 				page = (val >> 16) & 0xf;
@@ -925,7 +927,7 @@ int main(int argc, char **argv)
 		pthread_join(ctrl_thread, &status);
 #ifdef DEBUG
 		if(enable_kb_thread)
-			pthread_join(kb_thread_fn, &status);
+			pthread_join(kb_thread, &status);
 #endif
 
 		closesocket(s);
