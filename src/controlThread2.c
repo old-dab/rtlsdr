@@ -170,9 +170,9 @@ uint32_t calcCrcVal(uint8_t inp[], int length, uint32_t initialValue, int finalI
 
 int prepareSerialsList(uint8_t* buf)
 {
+	#define SERLEN 64
 	char vendor[256], product[256], serial[256];
 	uint8_t* p = buf;
-	const int SERLEN = 64;
 	char SerNo[SERLEN];
 
 	createCrcTable(0xedb88320);
@@ -201,6 +201,9 @@ int prepareSerialsList(uint8_t* buf)
 	}
 	return (int)(p - buf);
 }
+
+int old_gain = 0;
+int tuner_gain = 0;
 
 void *ctrl_thread_fn(void *arg)
 {
@@ -269,7 +272,7 @@ void *ctrl_thread_fn(void *arg)
 	{
 		unsigned char tmp[1024];
 		int gains[100];
-		int tuner_gain, len;
+		int len;
 		int buflen = 0;
 		int reglen = 0;
 		int tuner_gain_count = 0, tuner_type = 0;
@@ -280,20 +283,24 @@ void *ctrl_thread_fn(void *arg)
 		switch (CommState)
 		{
 		case ST_IDLE:
+			//printf("ST_IDLE\n");
 			goto sleep;
 
 		case ST_DEVICE_RELEASED:
+			//printf("ST_DEVICE_RELEASED\n");
 			len = prepareIntCommand(txbuf, len, IND_DEVICE_RELEASED, 1, 1);
 			CommState = ST_IDLE; // wait for socket to close
 			break;
 
 		case ST_SERIALS_REQUESTED: // 1st command
+			//printf("ST_SERIALS_REQUESTED\n");
 			buflen = prepareSerialsList(tmp);
 			len = prepareStringCommand(txbuf, len, IND_SERIAL, tmp, buflen);
 			CommState = ST_IDLE; // wait for the next command changing the state
 			break;
 
 		case ST_DEVICE_CREATED:
+			//printf("ST_DEVICE_CREATED\n");
 			len = prepareStringCommand(txbuf, len, IND_MAGIC_STRING, (uint8_t*)"RTL0", 4);
 			len = prepareStringCommand(txbuf, len, IND_RX_STRING,    (uint8_t*)"RTL0", 4);
 			len = prepareIntCommand(txbuf, len, IND_RX_TYPE, 5, 1);
@@ -309,9 +316,17 @@ void *ctrl_thread_fn(void *arg)
 			CommState = ST_WELCOME_SENT;
 			//fall through
 		case ST_WELCOME_SENT:
+			//printf("ST_WELCOME_SENT\n");
 			if(rtlsdr_get_tuner_i2c_register(dev, reg_values, &reglen, &tuner_gain) == 0)
 			{
-				len = prepareIntCommand(txbuf, len, IND_GAIN, tuner_gain, 2);
+#ifdef DEBUG
+				if(old_gain != tuner_gain)
+				{
+					printf("gain = %2.1f dB\n", tuner_gain/10.0);
+					old_gain = tuner_gain;
+				}
+#endif
+				len = prepareIntCommand(txbuf, len, IND_GAIN, tuner_gain-30, 2); // -3 dB Korrektur für Qirx
 				len = prepareStringCommand(txbuf, len, REPORT_I2C_REGS, reg_values, reglen);
 			}
 			len = prepareIntCommand(txbuf, len, IND_LNA_STATE, lna_state, 1);
