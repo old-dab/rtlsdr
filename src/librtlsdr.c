@@ -93,12 +93,16 @@ enum rtlsdr_async_status {
  * Default FIR coefficients used for DAB/FM by the Windows driver,
  * the DVB driver uses different ones
  */
-static const int fir_default[FIR_LEN] = {
-	-54, -36, -41, -40, -32, -14, 14, 53,	/* 8 bit signed */
-	101, 156, 215, 273, 327, 372, 404, 421	/* 12 bit signed */
+static const int fir_default[][FIR_LEN] = {
+// 1.2 MHz
+	{-54, -36, -41, -40, -32, -14,  14, 53,	/* 8 bit signed */
+	 101, 156, 215, 273, 327, 372, 404, 421},/* 12 bit signed */
+// 770 kHz
+	{-44, -30, -12,  10,  35,  62,  91, 121,
+	 151, 181, 208, 232, 252, 268, 279, 285},
 };
 
-static const int fir_bw[] = {2400, 1600, 300};
+static const int fir_bw[] = {2400, 1500, 300};
 
 static int cal_imr = 0;
 
@@ -863,9 +867,9 @@ static void rtlsdr_set_i2c_repeater(rtlsdr_dev_t *dev, int on)
 }
 
 
-static	const char FM_coe2[][6] = {
-	{ 8, -7, 5,  3, -18, 80}, //1600kHz
-	{-1,  1, 6, 13,  22, 27}, //300kHz
+static const char FM_coe2[][6] = {
+	{ 8, -7, 5,  3, -18, 80}, //800kHz
+	{-1,  1, 6, 13,  22, 27}, //150kHz
 };
 
 static int Set_2nd_FIR(void *dev, int table)
@@ -885,6 +889,7 @@ static int Set_2nd_FIR(void *dev, int table)
 static int rtlsdr_set_fir(rtlsdr_dev_t *dev, int table)
 {
 	uint8_t fir[20];
+	const int *fir_table;
 	int i;
 
 	if((dev->fir == table) || (table > 2)) //no change
@@ -901,17 +906,20 @@ static int rtlsdr_set_fir(rtlsdr_dev_t *dev, int table)
 	}
 	else
 		printf("FIR Filter %d kHz\n", fir_bw[table]);
+	if(table == 2)
+		table = 1;
+	fir_table = fir_default[table];
 	// format: int8_t[8]
 	for (i = 0; i < 8; ++i) {
-		const int val = fir_default[i];
+		const int val = fir_table[i];
 		if (val < -128 || val > 127)
 			return -1;
 		fir[i] = val;
 	}
 	// format: int12_t[8]
 	for (i = 0; i < 8; i += 2) {
-		const int val0 = fir_default[8+i];
-		const int val1 = fir_default[8+i+1];
+		const int val0 = fir_table[8+i];
+		const int val1 = fir_table[8+i+1];
 		if (val0 < -2048 || val0 > 2047 || val1 < -2048 || val1 > 2047)
 			return -1;
 		fir[8+i*3/2] = val0 >> 4;
@@ -1387,8 +1395,8 @@ int rtlsdr_set_and_get_tuner_bandwidth(rtlsdr_dev_t *dev, uint32_t bw, uint32_t 
 	{
 		if(bw <= 300000)
 			rtlsdr_set_fir(dev, 2); //0.3 MHz
-		else if((bw <= 1600000) && (*applied_bw >= 2000000))
-			rtlsdr_set_fir(dev, 1); //1.6 MHz
+		else if((bw <= 1500000) && (*applied_bw >= 2000000))
+			rtlsdr_set_fir(dev, 1); //1.5 MHz
 		else
 			rtlsdr_set_fir(dev, 0); //2.4 MHz
 	}
