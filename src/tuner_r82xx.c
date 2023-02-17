@@ -42,10 +42,9 @@
 
 #define MHZ(x)		((x)*1000*1000)
 
-extern int16_t interpolate(int16_t freq, int size, const uint16_t *freqs, const int16_t *gains);
+extern int16_t interpolate(int16_t freq, int size, const int16_t *freqs, const int16_t *gains);
 extern int rtlsdr_get_agc_val(void *dev, int *slave_demod);
 extern uint16_t rtlsdr_demod_read_reg(rtlsdr_dev_t *dev, uint16_t page, uint16_t addr, uint8_t len);
-
 
 /*
 Read registers
@@ -198,7 +197,7 @@ R10		[7] 	PWD_FILT		Filter power on/off
 		[3:0] 	FILT_CODE		Filter bandwidth manual fine tune
 								0000 Widest, 1111 narrowest
 ------------------------------------------------------------------------------------
-R11		[7:5] 	FILT_BW			Filter bandwidth manual course tunnel
+R11		[7:5] 	FILT_BW			Filter bandwidth manual course tune
 0x0B							000: widest
 								010 or 001: middle
 								111: narrowest
@@ -633,12 +632,12 @@ static int r82xx_read(struct r82xx_priv *priv, uint8_t *buf, int len)
 	printf("\n");
 }*/
 
-static const uint16_t abs_freqs_r820t[] = {
+static const int16_t abs_freqs_r820t[] = {
   25, 26, 27, 28, 30, 32, 35, 40, 50, 50, 55, 55, 60, 60, 65, 65, 70, 70, 75, 75,100,100,140,140,174,174,200,200,240,240,280,280,320,345,345,600,850,1000,1500,1700,1750};
 static const int16_t abs_gains_r820t[] = {
  194,178,169,161,149,141,134,137,143,139,139,127,127,127,127,118,118,113,114, 90, 92,104,107,107,102, 86, 83, 77, 72, 69, 68, 59, 66, 71, 71, 92,109, 118, 138, 145, 153};
 
-static const uint16_t abs_freqs_r828d[] = {
+static const int16_t abs_freqs_r828d[] = {
  25, 26, 27, 28, 30, 32, 35, 40, 50, 50, 55, 55, 60, 60, 65, 65, 70, 70, 75, 75,100,100,140,140,174,174,200,200,240,240,260,280,280,320,345,345,365,400,500,600,850,1000,1500,1700,1750};
 static const int16_t abs_gains_r828d[] = {
 251,245,239,234,224,215,209,202,192,189,184,174,170,170,167,160,157,153,151,130,124,137,125,127,105,100, 90, 89, 92, 84, 87, 98, 93,114,146,129,110, 98, 97, 102,110,121, 187, 230, 241};
@@ -961,7 +960,7 @@ int r82xx_set_i2c_register(struct r82xx_priv *priv, unsigned i2c_register, unsig
 		return -1;
 }
 
-static const uint16_t lna_freqs_r820t[] = {
+static const int16_t lna_freqs_r820t[] = {
 	  25,  30,  50,  75, 100, 200, 500, 750, 980,1250,1500,1700};
 static const int16_t lna_gains_r820t[][16] = {
 	{  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0},
@@ -981,7 +980,7 @@ static const int16_t lna_gains_r820t[][16] = {
 	{345, 343, 339, 338, 337, 334, 334, 317, 296, 272, 252, 225},
 	{289, 299, 322, 339, 342, 343, 346, 325, 303, 279, 255, 227}};
 
-static const uint16_t lna_freqs_r828d[] = {
+static const int16_t lna_freqs_r828d[] = {
 	  25,  30,  50, 100, 200, 345, 345, 500, 750, 980,1250,1500,1700};
 static const int16_t lna_gains_r828d[][16] = {
 	{  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0},
@@ -1005,14 +1004,14 @@ static const int r82xx_mixer_gains[]  = {
  	0, 13, 32, 49, 63, 76, 91, 105, 119, 133, 148, 161, 174, 174, 174, 174
 };
 
-static const uint16_t if_agc_tab_r820t[] = {
+static const int16_t if_agc_tab_r820t[] = {
 	0xe000,0xf800,0xfc80,0x00d0,0x0250,0x0820,0x0f50,0x1030,0x12d0,0x1440,0x1610,0x1820,0x1980,0x1b50,0x1fff
 };
 static const int16_t if_gain_tab_r820t[] = {
 	   -60,   -50,   -40,   -20,     0,    80,   200,   220,   300,   340,   380,   420,   440,   460,   470
 };
 
-static const uint16_t if_agc_tab_r828d[]  = {0xe000,0x10a0,0x1720,0x1fff};
+static const int16_t if_agc_tab_r828d[]  = {0xe000,0x10a0,0x1720,0x1fff};
 static const int16_t if_gain_tab_r828d[] = {   -55,     0,   105,   320};
 
 static int r82xx_get_signal_strength(struct r82xx_priv *priv, unsigned char* data)
