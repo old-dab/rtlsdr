@@ -95,8 +95,8 @@ enum rtlsdr_async_status {
  */
 static const int fir_default[][FIR_LEN] = {
 // 1.2 MHz
-	{-54, -36, -41, -40, -32, -14,  14, 53,	/* 8 bit signed */
-	 101, 156, 215, 273, 327, 372, 404, 421},/* 12 bit signed */
+	{-54, -36, -41, -40, -32, -14,  14, 53,	// 8 bit signed
+	 101, 156, 215, 273, 327, 372, 404, 421}, // 12 bit signed
 // 770 kHz
 	{-44, -30, -12,  10,  35,  62,  91, 121,
 	 151, 181, 208, 232, 252, 268, 279, 285},
@@ -304,9 +304,9 @@ static rtlsdr_tuner_iface_t tuners[] = {
 	},
 	{
 		fc2580_init, fc2580_exit,
-		fc2580_set_freq, fc2580_set_bw, NULL, NULL,
-		NULL, fc2580_set_i2c_register,
-		fc2580_get_i2c_register, NULL, NULL
+		fc2580_set_freq, fc2580_set_bw, fc2580_set_gain, NULL,
+		fc2580_set_gain_mode, fc2580_set_i2c_register,
+		fc2580_get_i2c_register, NULL, fc2580_get_gains
 	},
 	{
 		r820t_init, r820t_exit,
@@ -867,18 +867,18 @@ static void rtlsdr_set_i2c_repeater(rtlsdr_dev_t *dev, int on)
 }
 
 
-static const char FM_coe2[][6] = {
+static const char FM_coe[][6] = {
 	{ 8, -7, 5,  3, -18, 80}, //800kHz
 	{-1,  1, 6, 13,  22, 27}, //150kHz
 };
 
-static int Set_2nd_FIR(void *dev, int table)
+static int Set_3rd_FIR(void *dev, int table)
 {
 
     unsigned short addr = 0x1f;
 	int i;
 	int rst = 0;
-	const char *fir_table = FM_coe2[table];
+	const char *fir_table = FM_coe[table];
 
 	for(i=0; i<6; i++)
 		rst |= rtlsdr_demod_write_reg(dev, 0, addr--, fir_table[i], 1);
@@ -894,14 +894,14 @@ static int rtlsdr_set_fir(rtlsdr_dev_t *dev, int table)
 
 	if((dev->fir == table) || (table > 2)) //no change
 		return 0;
-	//2nd FIR-Filter
+	//3rd FIR-Filter
 	if(rtlsdr_demod_write_reg_mask(dev, 0, 0x19, (table) ? 0x00 : 0x04, 0x04))
 		return -1;
 	dev->fir = table;
 	if(table)
 	{
 		Set_2nd_FIR(dev,table-1);
-		//Bandwidth of 2nd FIR filter depends on output bitrate
+		//Bandwidth of 3rd FIR filter depends on output bitrate
 		printf("FIR Filter %d kHz\n", fir_bw[table]*(dev->rate/1000)/2048);
 	}
 	else
@@ -944,7 +944,7 @@ int rtlsdr_get_agc_val(void *dev, int *slave_demod)
 	return rtlsdr_demod_read_reg(dev, 3, 0x59, 2);
 }
 
-int16_t interpolate(int16_t freq, int size, const uint16_t *freqs, const int16_t *gains)
+int16_t interpolate(int16_t freq, int size, const int16_t *freqs, const int16_t *gains)
 {
 	int16_t gain = 0;
 	int i;
@@ -964,7 +964,7 @@ int16_t interpolate(int16_t freq, int size, const uint16_t *freqs, const int16_t
 
 int rtlsdr_reset_demod(rtlsdr_dev_t *dev)
 {
-	/* reset demod (bit 3, soft_rst) */
+	/* reset demod (bit 2, soft_rst) */
 	int r = rtlsdr_demod_write_reg_mask(dev, 1, 0x01, 0x04, 0x04);
 	r |= rtlsdr_demod_write_reg_mask(dev, 1, 0x01, 0x00, 0x04);
 	return r;
