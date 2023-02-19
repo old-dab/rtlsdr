@@ -900,7 +900,7 @@ static int rtlsdr_set_fir(rtlsdr_dev_t *dev, int table)
 	dev->fir = table;
 	if(table)
 	{
-		Set_2nd_FIR(dev,table-1);
+		Set_3rd_FIR(dev,table-1);
 		//Bandwidth of 3rd FIR filter depends on output bitrate
 		printf("FIR Filter %d kHz\n", fir_bw[table]*(dev->rate/1000)/2048);
 	}
