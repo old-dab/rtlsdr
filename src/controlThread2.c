@@ -183,7 +183,8 @@ int prepareSerialsList(uint8_t* buf)
 		if (rtlsdr_get_device_usb_strings(i, vendor, product, serial) < 0)
 			continue;
 		memset(SerNo,0,SERLEN);
-		strcpy(SerNo, vendor);
+		sprintf(SerNo, "%d: ", i);
+		strcat(SerNo, vendor);
 		strcat(SerNo, " ");
 		strcat(SerNo, product);
 		if(strlen(serial) > 0)
@@ -191,7 +192,7 @@ int prepareSerialsList(uint8_t* buf)
 			strcat(SerNo, " SN: ");
 			strcat(SerNo, serial);
 		}
-		printf( "  %d:  %s, %s, SN: %s\n", i, vendor, product, serial);
+		//printf( "  %d:  %s, %s, SN: %s\n", i, vendor, product, serial);
 		for (int k = 0; k < SERLEN; k++)
 			*p++ = SerNo[k];
 		*p++ = ',';
@@ -322,7 +323,7 @@ void *ctrl_thread_fn(void *arg)
 #ifdef DEBUG
 				if(old_gain != tuner_gain)
 				{
-					printf("gain = %2.1f dB\n", tuner_gain/10.0);
+					//printf("gain = %2.1f dB\n", tuner_gain/10.0);
 					old_gain = tuner_gain;
 				}
 #endif
