@@ -151,7 +151,7 @@ int sendBuffer(SOCKET socket, const char *txbuf, int len, volatile int *do_exit)
 int selectDevice(uint32_t crc)
 {
 	int i;
-	printf("numDevices = %d\n",numDevices);
+	//printf("numDevices = %d\n",numDevices);
 	for (i = 0; i < numDevices; i++)
 	{
 		// Pick first if crc == 0
@@ -672,6 +672,10 @@ static void *kb_thread_fn(void *arg)
 					rtlsdr_set_agc_mode(dev, agc);
 					printf("set agc mode %u\n", agc);
 					break;
+				case 'r':
+					rtlsdr_reset_demod(dev);
+					printf("reset demod\n");
+					break;
 			}
 		else if((len == 6) && (keybuf[0] == 'w'))
 		{
@@ -689,6 +693,27 @@ static void *kb_thread_fn(void *arg)
 	return NULL;
 }
 #endif
+
+int device_search(void)
+{
+	char vendor[256], product[256], serial[256];
+	int i;
+	int device_count = rtlsdr_get_device_count();
+	if (!device_count)
+	{
+		printf("No supported devices found.\n");
+		return 0;
+	}
+	printf("Found %d device(s):\n", device_count);
+	for (i = 0; i < device_count; i++)
+	{
+		if(rtlsdr_get_device_usb_strings(i, vendor, product, serial) < 0)
+			continue;
+		printf("  %d:  %s, %s, SN: %s\n", i, vendor, product, serial);
+	}
+	printf("\n");
+	return device_count;
+}
 
 int main(int argc, char **argv)
 {
@@ -817,11 +842,8 @@ int main(int argc, char **argv)
 	if (verbosity)
 		printf("verbosity set to %d\n", verbosity);
 
-	if (!rtlsdr_get_device_count())
-	{
-		printf( "No supported devices found.\n");
+	if (!device_search())
 		exit(1);
-	}
 
 	rtlsdr_cal_imr(cal_imr);
 
