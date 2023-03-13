@@ -40,6 +40,8 @@
 #define HAVE_STRUCT_TIMESPEC
 #endif
 
+#include <pthread.h>
+
 #include "rtl-sdr.h"
 #include "rtl_tcp.h"
 #include "controlThread.h"
@@ -85,6 +87,8 @@ extern int lna_state;
 extern int numDevices;
 extern uint32_t serialCRCs[];
 extern int sendBuffer(SOCKET socket, char *txbuf, int len, volatile int *do_exit);
+extern pthread_mutex_t mut;
+extern pthread_cond_t cond;
 
 static unsigned char txbuf[TX_BUF_LEN];
 static uint32_t crcTable[256];
@@ -314,7 +318,10 @@ void *ctrl_thread_fn(void *arg)
 			if (tuner_gain_count >= 0)
 				len = prepareIntCommand(txbuf, len, IND_GAIN_COUNT, tuner_gain_count, 1);
 			printf("tuner_gain_count = %d\n", tuner_gain_count);
+			pthread_mutex_lock(&mut);
 			CommState = ST_WELCOME_SENT;
+			pthread_cond_signal(&cond);
+			pthread_mutex_unlock(&mut);
 			//fall through
 		case ST_WELCOME_SENT:
 			//printf("ST_WELCOME_SENT\n");
@@ -327,7 +334,7 @@ void *ctrl_thread_fn(void *arg)
 					old_gain = tuner_gain;
 				}
 #endif
-				len = prepareIntCommand(txbuf, len, IND_GAIN, tuner_gain-30, 2); // -3 dB Korrektur fÃ¼r Qirx
+				len = prepareIntCommand(txbuf, len, IND_GAIN, tuner_gain-30, 2); // -3 dB Korrektur für Qirx
 				len = prepareStringCommand(txbuf, len, REPORT_I2C_REGS, reg_values, reglen);
 			}
 			len = prepareIntCommand(txbuf, len, IND_LNA_STATE, lna_state, 1);
@@ -357,3 +364,4 @@ close:
 	printf("Control thread terminated\n");
 	return 0;
 }
+

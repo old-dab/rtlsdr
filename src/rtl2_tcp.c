@@ -71,8 +71,8 @@ static ctrl_thread_data_t ctrldata;
 
 static SOCKET s;
 
-static pthread_mutex_t ll_mutex;
-static pthread_cond_t cond;
+pthread_mutex_t ll_mutex, mut;
+pthread_cond_t cond;
 
 struct llist {
 	char *data;
@@ -867,6 +867,7 @@ int main(int argc, char **argv)
 	SetConsoleCtrlHandler( (PHANDLER_ROUTINE) sighandler, TRUE );
 #endif
 	pthread_mutex_init(&ll_mutex, NULL);
+	pthread_mutex_init(&mut, NULL);
 	pthread_cond_init(&cond, NULL);
 	ctrldata.port = port + 1;
 	ctrldata.dev = dev;
@@ -934,11 +935,14 @@ int main(int argc, char **argv)
 		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 		r = pthread_create(&receive_thread, &attr, receive, NULL);
 
+		pthread_mutex_lock(&mut);
 		while(CommState != ST_WELCOME_SENT)
 		{
-			usleep(10000);
+			//usleep(10000);
+			pthread_cond_wait(&cond, &mut);
 			if(do_exit) break;
 		}
+		pthread_mutex_unlock(&mut);
 		r = pthread_create(&send_thread, &attr, sendStream, NULL);
 		pthread_attr_destroy(&attr);
 
