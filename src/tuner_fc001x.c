@@ -342,39 +342,30 @@ static int fc001x_set_freq(void *dev, uint32_t freq)
 	if (freq < 37084000) {			/* freq * 96 < 3560000000 */
 		multi = 96;
 		reg[5] = 0x82;
-		reg[6] = 0x00;
 	} else if (freq < 55625000) {	/* freq * 64 < 3560000000 */
 		multi = 64;
 		reg[5] = (tuner_type == RTLSDR_TUNER_FC0012) ? 0x82 : 0x02;
-		reg[6] = 0x02;
 	} else if (freq < 74167000) {	/* freq * 48 < 3560000000 */
 		multi = 48;
 		reg[5] = 0x42;
-		reg[6] = 0x00;
 	} else if (freq < 111250000) {	/* freq * 32 < 3560000000 */
 		multi = 32;
 		reg[5] = (tuner_type == RTLSDR_TUNER_FC0012) ? 0x42 : 0x82;
-		reg[6] = 0x02;
 	} else if (freq < 148334000) {	/* freq * 24 < 3560000000 */
 		multi = 24;
 		reg[5] = 0x22;
-		reg[6] = 0x00;
 	} else if (freq < 222500000) {	/* freq * 16 < 3560000000 */
 		multi = 16;
 		reg[5] = (tuner_type == RTLSDR_TUNER_FC0012) ? 0x22 : 0x42;
-		reg[6] = 0x02;
 	} else if (freq < 296667000) {	/* freq * 12 < 3560000000 */
 		multi = 12;
 		reg[5] = 0x12;
-		reg[6] = 0x00;
 	} else if (freq < 445000000) {	/* freq * 8 < 3560000000 */
 		multi = 8;
 		reg[5] = (tuner_type == RTLSDR_TUNER_FC0012) ? 0x12 : 0x22;
-		reg[6] = 0x02;
 	} else if (freq < 593334000) {	/* freq * 6 < 3560000000 */
 		multi = 6;
 		reg[5] = 0x0a;
-		reg[6] = 0x00;
 	} else {
 		if(tuner_type == RTLSDR_TUNER_FC0012)
 		{
@@ -383,7 +374,7 @@ static int fc001x_set_freq(void *dev, uint32_t freq)
 		}
 		else
 		{
-			if (freq < 950000000) {	/* freq * 4 < 3800000000 */
+			if (freq < 948600000) {	/* freq * 4 < 3800000000 */
 				multi = 4;
 				reg[5] = 0x12;
 			} else {
@@ -391,8 +382,8 @@ static int fc001x_set_freq(void *dev, uint32_t freq)
 				reg[5] = 0x0a;
 			}
 		}
-		reg[6] = 0x02;
 	}
+	reg[6] = ((multi % 3) == 0) ? 0x00 : 0x02;
 
 	f_vco = (int64_t)freq * multi;
 	if (f_vco >= 3060000000U) {
@@ -618,7 +609,8 @@ static int fc001x_get_i2c_register(void *dev, unsigned char* data, int *len, int
 	int rc;
 	uint8_t mixer, gain_mode;
 	uint8_t LNA_value;
-	uint8_t RSSI_Value, RSSI_Difference;
+	uint8_t RSSI_Value;
+	int RSSI_Difference;
 
 	rc = fc001x_readreg(dev, 0x0d, &gain_mode);
 	if (rc < 0)
@@ -643,8 +635,6 @@ static int fc001x_get_i2c_register(void *dev, unsigned char* data, int *len, int
 	*tuner_gain = fc001x_get_signal_strength(data[if_reg], data[lna_reg], mixer);
 
 	RSSI_Value = rtlsdr_demod_read_reg(dev, 3, 0x01, 1);
-	if( RSSI_Value < RSSI_Calibration_Value )				// adjust RSSI Calibration Value
-		RSSI_Calibration_Value = RSSI_Value;
 	RSSI_Difference = RSSI_Value - RSSI_Calibration_Value;	// Calculate voltage difference of RSSI
 
 	LNA_value = data[lna_reg] & 0x1f;

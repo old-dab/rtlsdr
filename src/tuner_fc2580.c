@@ -107,12 +107,12 @@ typedef enum {
 	FC2580_L_BAND
 } fc2580_band_type;
 
-struct fc2580_reg_val {
+static fc2580_band_type curr_band = FC2580_VHF_BAND;
+
+static const struct {
 	uint8_t reg;
 	uint8_t val;
-};
-
-static const struct fc2580_reg_val fc2580_init_reg_vals[] = {
+} fc2580_reg_val[] = {
 	{0x00, 0x00},
 	{0x12, 0x86},
 	{0x14, 0x5c},
@@ -141,29 +141,22 @@ static const struct fc2580_reg_val fc2580_init_reg_vals[] = {
 	{0x6c, 0x13}  //threshold VGA
 };
 
-struct fc2580_pll {
+static const struct {
 	uint32_t freq;
 	uint8_t div_out;
 	uint8_t band;
-};
-
-static const struct fc2580_pll fc2580_pll_lut[] = {
+} fc2580_pll[] = {
 	{ 400000000, 12, 0x80}, // VHF
 	{ 538000000,  4, 0x00}, // UHF1
 	{ 794000000,  4, 0x00}, // UHF2
 	{ 925000000,  4, 0x00}, // UHF3
-	{0xffffffff,  2, 0x40}, // L-Band
+	{0xffffffff,  2, 0x40}  // L-Band
 };
 
-static fc2580_band_type curr_band = FC2580_VHF_BAND;
-
-
-struct fc2580_freq_regs {
+static const struct {
 	uint8_t reg;
 	uint8_t val[5];
-};
-
-static const struct fc2580_freq_regs fc2580_freq_regs_lut[] = {
+} fc2580_freq_regs[] = {
 	{0x28, {0x33,0x53,0x53,0x53,0xff}},
 	{0x29, {0x40,0x60,0x60,0x60,0xff}},
 	{0x2d, {0xff,0x9f,0x9f,0x8f,0xe7}}, // UHF LNA Load Cap
@@ -202,7 +195,7 @@ static int fc2580_write(void *dev, unsigned char reg, unsigned char val)
 }
 
 /* write single register conditionally only when value differs from 0xff
- * XXX: This is special routine meant only for writing fc2580_freq_regs_lut[]
+ * XXX: This is special routine meant only for writing fc2580_freq_regs[]
  * values. Do not use for the other purposes. */
 static int fc2580_wr_reg_ff(void *dev, uint8_t reg, uint8_t val)
 {
@@ -325,15 +318,15 @@ int fc2580_init(void *dev)
 	int ret;
 	unsigned int i;
 
-	for (i = 0; i < ARRAY_SIZE(fc2580_init_reg_vals); i++) {
-		ret = fc2580_write(dev, fc2580_init_reg_vals[i].reg,
-				fc2580_init_reg_vals[i].val);
+	for (i = 0; i < ARRAY_SIZE(fc2580_reg_val); i++) {
+		ret = fc2580_write(dev, fc2580_reg_val[i].reg,
+				fc2580_reg_val[i].val);
 		if (ret)
 			goto err;
 	}
-	for (i = 0; i < ARRAY_SIZE(fc2580_freq_regs_lut); i++){
-		ret = fc2580_wr_reg_ff(dev, fc2580_freq_regs_lut[i].reg,
-				fc2580_freq_regs_lut[i].val[curr_band]);
+	for (i = 0; i < ARRAY_SIZE(fc2580_freq_regs); i++){
+		ret = fc2580_wr_reg_ff(dev, fc2580_freq_regs[i].reg,
+				fc2580_freq_regs[i].val[curr_band]);
 		if (ret)
 			goto err;
 	}
@@ -367,19 +360,19 @@ int fc2580_set_freq(void *dev, unsigned int frequency)
 	 *                               | /Rout | ------>
 	 *                               +-------+
 	 */
-	for (i = 0; i < ARRAY_SIZE(fc2580_pll_lut); i++) {
-		if (frequency <= fc2580_pll_lut[i].freq)
+	for (i = 0; i < ARRAY_SIZE(fc2580_pll); i++) {
+		if (frequency <= fc2580_pll[i].freq)
 			break;
 	}
-	if (i == ARRAY_SIZE(fc2580_pll_lut)) {
+	if (i == ARRAY_SIZE(fc2580_pll)) {
 		ret = -1;
 		goto err;
 	}
 
 	#define DIV_PRE_N 2
-	div_out = fc2580_pll_lut[i].div_out;
+	div_out = fc2580_pll[i].div_out;
 	f_vco = (uint64_t)frequency * div_out;
-	synth_config |= fc2580_pll_lut[i].band;
+	synth_config |= fc2580_pll[i].band;
 	if (f_vco < 2600000000ULL) //Select VCO Band
 		synth_config |= 0x06;
 	else
@@ -420,8 +413,8 @@ int fc2580_set_freq(void *dev, unsigned int frequency)
 	if(curr_band != i)
 	{
 		curr_band = i;
-		for (i = 0; i < ARRAY_SIZE(fc2580_freq_regs_lut); i++)
-			ret |= fc2580_wr_reg_ff(dev, fc2580_freq_regs_lut[i].reg, fc2580_freq_regs_lut[i].val[curr_band]);
+		for (i = 0; i < ARRAY_SIZE(fc2580_freq_regs); i++)
+			ret |= fc2580_wr_reg_ff(dev, fc2580_freq_regs[i].reg, fc2580_freq_regs[i].val[curr_band]);
 	}
 	if (ret)
 		goto err;
