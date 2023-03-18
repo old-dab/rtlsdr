@@ -137,7 +137,7 @@ struct rtlsdr_dev {
 	uint32_t freq; /* Hz */
 	uint32_t bw;
 	uint32_t offs_freq; /* Hz */
-	int corr; /* 1/100 ppm */
+	int corr; /* ppb */
 	int gain; /* tenth dB */
 	enum rtlsdr_ds_mode direct_sampling_mode;
 	uint32_t direct_sampling_threshold; /* Hz */
@@ -520,6 +520,38 @@ enum blocks {
 	ROMB  	= 0x0400,
 	IICB 	= 0x0600
 };
+
+/* Some demodulator registers, not described in datasheet
+
+Page Reg Bitmap	Description
+---------------------------------------------------------------
+0	0x09 		Gain before the ADC
+		 [1:0]	I, in steps of 2.5 dB
+		 [3:2]	Q, in steps of 2.5 dB
+		 [6:4]	I and Q, in steps of 0.7 dB
+---------------------------------------------------------------
+0	0x17 		ADC gain, when DAGC is on. 0x01=min, 0xff=max
+---------------------------------------------------------------
+0	0x18 		ADC gain, when DAGC is off. 0x00=min, 0x7f=max
+---------------------------------------------------------------
+0	0x19 [0]	SDR mode	0: off, 1: on
+0	0x19 [1]	Test mode	0: off, 1: on
+0	0x19 [2]	3rd FIR switch 0: on, 1: off
+0	0x19 [4:3]	DAGC speed 00 = slowest, 11 = fastest
+0	0x19 [5]	DAGC 0: on, 1: off
+---------------------------------------------------------------
+0	0x1a		Coefficient 6 of 3rd FIR
+0	0x1b		Coefficient 5 of 3rd FIR
+0	0x1c		Coefficient 4 of 3rd FIR
+0	0x1d		Coefficient 3 of 3rd FIR
+0	0x1e		Coefficient 2 of 3rd FIR
+0	0x1f		Coefficient 1 of 3rd FIR
+---------------------------------------------------------------
+1	0x01 [2]	Demodulator software reset 0: off, 1: on
+---------------------------------------------------------------
+3	0x01		RSSI
+---------------------------------------------------------------
+*/
 
 static rtlsdr_dongle_t *find_known_device(uint16_t vid, uint16_t pid)
 {
@@ -1143,14 +1175,13 @@ static inline int rtlsdr_set_spectrum_inversion(rtlsdr_dev_t *dev, int sideband)
 	return rtlsdr_demod_write_reg_mask(dev, 1, 0x15, sideband ? 0x00 : 0x01, 0x01);
 }
 
-static int rtlsdr_set_sample_freq_correction(rtlsdr_dev_t *dev, int ppm)
+static int rtlsdr_set_sample_freq_correction(rtlsdr_dev_t *dev, int ppb)
 {
 	int r = 0;
-	int16_t offs = (int64_t)ppm * (-1) * TWO_POW(24) / 100000000;
+	int16_t offs = (int64_t)ppb * (-1) * TWO_POW(24) / 1000000000;
 
 	r |= rtlsdr_demod_write_reg(dev, 1, 0x3e, (offs >> 8) & 0x3f, 1);
 	r |= rtlsdr_demod_write_reg(dev, 1, 0x3f, offs & 0xff, 1);
-
 	return r;
 }
 
@@ -1197,7 +1228,7 @@ int rtlsdr_get_xtal_freq(rtlsdr_dev_t *dev, uint32_t *rtl_freq, double *tuner_fr
 	if (!dev)
 		return -1;
 
-	#define APPLY_PPM_CORR(val,ppm) (((val) * (1.0 + (ppm) / 1e8)))
+	#define APPLY_PPM_CORR(val,ppb) (((val) * (1.0 + (ppb) / 1e9)))
 
 	if (rtl_freq)
 		*rtl_freq = (uint32_t) APPLY_PPM_CORR(dev->rtl_xtal, dev->corr);
@@ -1291,19 +1322,19 @@ uint32_t rtlsdr_get_center_freq(rtlsdr_dev_t *dev)
 	return dev->freq;
 }
 
-int rtlsdr_set_freq_correction_100ppm(rtlsdr_dev_t *dev, int ppm)
+int rtlsdr_set_freq_correction_ppb(rtlsdr_dev_t *dev, int ppb)
 {
 	int r = 0;
 
 	if (!dev)
 		return -1;
 
-	if (dev->corr == ppm)
+	if (dev->corr == ppb)
 		return -2;
 
-	dev->corr = ppm;
+	dev->corr = ppb;
 
-	r |= rtlsdr_set_sample_freq_correction(dev, ppm);
+	r |= rtlsdr_set_sample_freq_correction(dev, ppb);
 
 	/* read corrected clock value into e4k and r82xx structure */
 	if (rtlsdr_get_xtal_freq(dev, NULL, &dev->e4k_s.vco.fosc) ||
@@ -1316,9 +1347,14 @@ int rtlsdr_set_freq_correction_100ppm(rtlsdr_dev_t *dev, int ppm)
 	return r;
 }
 
+int rtlsdr_set_freq_correction_100ppm(rtlsdr_dev_t *dev, int ppm)
+{
+	return rtlsdr_set_freq_correction_ppb(dev, ppm * 10);
+}
+
 int rtlsdr_set_freq_correction(rtlsdr_dev_t *dev, int ppm)
 {
-	return rtlsdr_set_freq_correction_100ppm(dev, ppm * 100);
+	return rtlsdr_set_freq_correction_ppb(dev, ppm * 1000);
 }
 
 int rtlsdr_get_freq_correction(rtlsdr_dev_t *dev)
@@ -1326,10 +1362,18 @@ int rtlsdr_get_freq_correction(rtlsdr_dev_t *dev)
 	if (!dev)
 		return 0;
 
-	return dev->corr / 100;
+	return dev->corr / 1000;
 }
 
 int rtlsdr_get_freq_correction_100ppm(rtlsdr_dev_t *dev)
+{
+	if (!dev)
+		return 0;
+
+	return dev->corr / 10;
+}
+
+int rtlsdr_get_freq_correction_ppb(rtlsdr_dev_t *dev)
 {
 	if (!dev)
 		return 0;
