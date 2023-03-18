@@ -497,9 +497,13 @@ static void *command_worker(void *arg)
 			printf("%sable dithering\n", param ? "en" : "dis");
 			rtlsdr_set_dithering(dev, param);
 			break;
-		case SET_001_PPM://0x4a
+		case SET_FREQUENCY_CORRECTION_001_PPM://0x4a
 			printf("set freq correction to %0.2f ppm\n", (int)param/100.0);
 			rtlsdr_set_freq_correction_100ppm(dev, (int)param);
+			break;
+		case SET_FREQUENCY_CORRECTION_PPB://0x83
+			printf("set freq correction to %0.3f ppm\n", (int)param/1000.0);
+			rtlsdr_set_freq_correction_ppb(dev, (int)param);
 			break;
 		default:
 			break;
@@ -510,7 +514,7 @@ static void *command_worker(void *arg)
 }
 
 #ifdef DEBUG
-static void *ir_thread_fn(void *arg)
+static void *kb_thread_fn(void *arg)
 {
 	char keybuf[80];
 	int agc = 0;
@@ -552,10 +556,14 @@ static void *ir_thread_fn(void *arg)
 					rtlsdr_set_agc_mode(dev, agc);
 					printf("set agc mode %u\n", agc);
 					break;
+				case 'r':
+					rtlsdr_reset_demod(dev);
+					printf("reset demod\n");
+					break;
 			}
 		else if((len == 6) && (keybuf[0] == 'w'))
 		{
-			int val, page, adr;
+			unsigned int val, page, adr;
 			if (sscanf(keybuf+1,"%x",&val) == 1)
 			{
 				page = (val >> 16) & 0xf;
@@ -615,8 +623,8 @@ int main(int argc, char **argv)
 	pthread_t tcp_worker_thread;
 	pthread_t command_thread;
 #ifdef DEBUG
-	pthread_t thread_ir;
-	int port_ir = 0;
+	pthread_t kb_thread;
+	int enable_kb_thread = 0;
 #endif
 #ifdef _WIN32
 	u_long blockmode = 1;
@@ -697,7 +705,7 @@ int main(int argc, char **argv)
 			iq.show_level = 1;
 			break;
 		case 'I':
-			port_ir = 1;
+			enable_kb_thread = 1;
 			break;
 #endif
 		case 'P':
@@ -797,8 +805,8 @@ int main(int argc, char **argv)
 	pthread_mutex_init(&ll_mutex, NULL);
 	pthread_cond_init(&cond, NULL);
 #ifdef DEBUG
-	if(port_ir)
-		pthread_create(&thread_ir, NULL, &ir_thread_fn, NULL);
+	if(enable_kb_thread)
+		pthread_create(&kb_thread, NULL, &kb_thread_fn, NULL);
 #endif
 	if ( port_resp == 1 )
 		port_resp = port + 1;
@@ -918,6 +926,10 @@ out:
 		ctrldata.pDoExit = &do_exit_thrd_ctrl;
 		pthread_join(thread_ctrl, &status);
 	}
+#ifdef DEBUG
+	if(enable_kb_thread)
+		pthread_join(kb_thread, &status);
+#endif
 	if(dev)
 		rtlsdr_close(dev);
 	closesocket(s);

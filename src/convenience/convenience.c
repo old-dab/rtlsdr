@@ -281,11 +281,11 @@ int verbose_ppm_set(rtlsdr_dev_t *dev, float ppm_error)
 	int r;
 	if (ppm_error == 0) {
 		return 0;}
-	r = rtlsdr_set_freq_correction_100ppm(dev, (int)(ppm_error*100.0));
+	r = rtlsdr_set_freq_correction_ppb(dev, (int)(ppm_error*1000.0));
 	if (r < 0) {
 		printf( "WARNING: Failed to set ppm error.\n");
 	} else {
-		printf("Tuner error set to %0.2f ppm.\n", ppm_error);
+		printf("Tuner error set to %0.3f ppm.\n", ppm_error);
 	}
 	return r;
 }

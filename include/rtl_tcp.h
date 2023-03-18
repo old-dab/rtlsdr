@@ -68,10 +68,11 @@ enum RTL_TCP_COMMANDS {
     REPORT_I2C_REGS           = 0x48,   /* perodically report I2C registers
                                          * - if reverse channel is enabled */
     SET_DITHERING			  = 0x49,   /* Enable or disable frequency dithering for R820T */
-	SET_001_PPM				  = 0x4A,	/* Set frequency correction in multiples of 0.01 ppm */
+	SET_FREQUENCY_CORRECTION_001_PPM = 0x4A,	/* Set frequency correction in multiples of 0.01 ppm */
     CMD_SET_LNA_STATE     	  = 0x4B,   // 0: most sensitive, 8: least sensitive
     CMD_SET_REQUEST_ALL_SERIALS = 0x80, // request for all serials to be transmitted via back channel
-    CMD_SET_SELECT_SERIAL 	  = 0x81    // value is four bytes CRC-32 of the requested serial number
+    CMD_SET_SELECT_SERIAL 	  = 0x81,    // value is four bytes CRC-32 of the requested serial number
+	SET_FREQUENCY_CORRECTION_PPB = 0x83	/* Set frequency correction in parts per billion */
 };
 
 enum eCommState
