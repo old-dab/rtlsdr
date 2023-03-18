@@ -1533,6 +1533,9 @@ int r82xx_init(struct r82xx_priv *priv)
 	priv->int_freq = 3570 * 1000;
 
 	if ((rc = r82xx_sysfreq_sel(priv, TUNER_DIGITAL_TV)) < 0) goto err;
+	rc = r82xx_write_reg_mask(priv, 0x08, priv->reg8[12], 0x3f);
+	if(rc < 0)
+		goto err;
 	priv->init_done = 1;
 
 err:
@@ -1551,4 +1554,3 @@ int r82xx_set_dither(struct r82xx_priv *priv, int dither)
 {
 	return r82xx_write_reg_mask(priv, 0x12, dither ? 0x00 : 0x10, 0x10);
 }
-
