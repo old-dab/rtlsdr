@@ -54,6 +54,7 @@
 #include "tuner_fc001x.h"
 #include "tuner_fc2580.h"
 #include "tuner_r82xx.h"
+#include "version.h"
 
 typedef struct rtlsdr_tuner_iface {
 	/* tuner interface */
@@ -3135,3 +3136,13 @@ void rtlsdr_cal_imr(const int val)
 {
 	cal_imr = val;
 }
+
+const char * rtlsdr_get_ver_id() {
+	return RTL_VER_ID " (" __DATE__ ")";
+}
+
+uint32_t rtlsdr_get_version() {
+	return ((uint32_t)RTLSDR_MAJOR << 24) | ((uint32_t)RTLSDR_MINOR << 16) |
+			((uint32_t)RTLSDR_MICRO << 8) | (uint32_t)RTLSDR_NANO;
+}
+

@@ -52,6 +52,7 @@
 #include <fcntl.h>
 #include <io.h>
 #include "getopt/getopt.h"
+
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #define round(x) (x > 0.0 ? floor(x + 0.5): ceil(x - 0.5))
 #endif
@@ -66,6 +67,7 @@
 
 #include "rtl-sdr.h"
 #include "convenience/convenience.h"
+#include "version.h"
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 
@@ -119,9 +121,14 @@ int peak_hold = 0;
 
 void usage(void)
 {
-	printf(
-		"rtl_power, a simple FFT logger for RTL2832 based DVB-T receivers\n\n"
-		"Use:\trtl_power -f freq_range [-options] [filename]\n"
+	printf("rtl_power, a simple FFT logger for RTL2832 based DVB-T receivers\n"
+		   "Version %d.%d.%d.%d, %s\n",
+		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
+	printf("rtlsdr library %d.%d.%d.%d %s\n\n",
+		rtlsdr_get_version()>>24, rtlsdr_get_version()>>16 & 0xFF,
+		rtlsdr_get_version()>>8 & 0xFF, rtlsdr_get_version() & 0xFF,
+		rtlsdr_get_ver_id() );
+	printf("Use:\trtl_power -f freq_range [-options] [filename]\n"
 		"\t-f lower:upper:bin_size [Hz]\n"
 		"\t (bin size is a maximum, smaller more convenient bins\n"
 		"\t  will be used.  valid range 1Hz - 2.8MHz)\n"

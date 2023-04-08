@@ -44,6 +44,7 @@
 
 #include "rtl-sdr.h"
 #include "convenience/convenience.h"
+#include "version.h"
 
 #ifdef _WIN32
 #define sleep Sleep
@@ -57,6 +58,7 @@
 #define DEFAULT_ASYNC_BUF_NUMBER	12
 #define DEFAULT_BUF_LENGTH		(16 * 16384)
 #define AUTO_GAIN			-100
+#define DEFAULT_BANDWIDTH		0	/* automatic bandwidth */
 
 #define MESSAGEGO    253
 #define OVERWRITE    254
@@ -88,15 +90,21 @@ int adsb_frame[14];
 
 void usage(void)
 {
-	printf(
-		"rtl_adsb, a simple ADS-B decoder\n\n"
-		"Use:\trtl_adsb [-R] [-g gain] [-p ppm] [output file]\n"
+	printf("rtl_adsb, a simple ADS-B decoder\n"
+		   "Version %d.%d.%d.%d, %s\n",
+		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
+	printf("rtlsdr library %d.%d.%d.%d %s\n\n",
+		rtlsdr_get_version()>>24, rtlsdr_get_version()>>16 & 0xFF,
+		rtlsdr_get_version()>>8 & 0xFF, rtlsdr_get_version() & 0xFF,
+		rtlsdr_get_ver_id() );
+	printf("Use:\trtl_adsb [-g gain] [-p ppm] [output file]\n"
 		"\t[-d device_index or serial (default: 0)]\n"
-		"\t[-V verbove output (default: off)]\n"
+		"\t[-V verbose output (default: off)]\n"
 		"\t[-S show short frames (default: off)]\n"
 		"\t[-Q quality (0: no sanity checks, 0.5: half bit, 1: one bit (default), 2: two bits)]\n"
 		"\t[-e allowed_errors (default: 5)]\n"
 		"\t[-g tuner_gain (default: automatic)]\n"
+		"\t[-w tuner_bandwidth (default: automatic)]\n"
 		"\t[-p ppm_error (default: 0)]\n"
 		"\t[-T enable bias-T on GPIO PIN 0 (works for rtl-sdr.com v3 dongles)]\n"
 		"\tfilename (a '-' dumps samples to stdout)\n"
@@ -379,11 +387,12 @@ int main(int argc, char **argv)
 	int dev_given = 0;
 	float ppm_error = 0;
 	int enable_biastee = 0;
+	uint32_t bandwidth = DEFAULT_BANDWIDTH;
 	pthread_cond_init(&ready, NULL);
 	pthread_mutex_init(&ready_m, NULL);
 	squares_precompute();
 
-	while ((opt = getopt(argc, argv, "d:g:p:e:Q:VST")) != -1)
+	while ((opt = getopt(argc, argv, "d:g:w:p:e:Q:VSTh")) != -1)
 	{
 		switch (opt) {
 		case 'd':
@@ -395,6 +404,9 @@ int main(int argc, char **argv)
 			break;
 		case 'p':
 			ppm_error = atof(optarg);
+			break;
+		case 'w':
+			bandwidth = (uint32_t)atofs(optarg);
 			break;
 		case 'V':
 			verbose_output = 1;
@@ -411,6 +423,7 @@ int main(int argc, char **argv)
 		case 'T':
 			enable_biastee = 1;
 			break;
+		case 'h':
 		default:
 			usage();
 			return 0;
@@ -472,14 +485,19 @@ int main(int argc, char **argv)
 		verbose_gain_set(dev, gain);
 	}
 
-	verbose_ppm_set(dev, ppm_error);
 	r = rtlsdr_set_agc_mode(dev, 1);
+
+	/* Set the sample rate */
+	verbose_set_sample_rate(dev, ADSB_RATE);
 
 	/* Set the tuner frequency */
 	verbose_set_frequency(dev, ADSB_FREQ);
 
-	/* Set the sample rate */
-	verbose_set_sample_rate(dev, ADSB_RATE);
+
+	/* Set the tuner bandwidth */
+	verbose_set_bandwidth(dev, bandwidth);
+
+	verbose_ppm_set(dev, ppm_error);
 
 	rtlsdr_set_bias_tee(dev, enable_biastee);
 	if (enable_biastee)

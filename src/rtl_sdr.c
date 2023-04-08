@@ -34,6 +34,7 @@
 #include "rtl-sdr.h"
 #include "convenience/convenience.h"
 #include "convenience/wavewrite.h"
+#include "version.h"
 
 #define DEFAULT_SAMPLE_RATE		2048000
 #define DEFAULT_BANDWIDTH		0	/* automatic bandwidth */
@@ -47,9 +48,14 @@ static rtlsdr_dev_t *dev = NULL;
 
 void usage(void)
 {
-	printf(
-		"rtl_sdr, an I/Q recorder for RTL2832 based DVB-T receivers\n\n"
-		"Usage:\t -f frequency_to_tune_to [Hz]\n"
+	printf("rtl_sdr, an I/Q recorder for RTL2832 based DVB-T receivers\n"
+		   "Version %d.%d.%d.%d, %s\n",
+		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
+	printf("rtlsdr library %d.%d.%d.%d %s\n\n",
+		rtlsdr_get_version()>>24, rtlsdr_get_version()>>16 & 0xFF,
+		rtlsdr_get_version()>>8 & 0xFF, rtlsdr_get_version() & 0xFF,
+		rtlsdr_get_ver_id() );
+	printf("Usage:\t -f frequency_to_tune_to [Hz]\n"
 		"\t[-s samplerate (default: 2048000 Hz)]\n"
 		"\t[-w tuner_bandwidth (default: automatic)]\n"
 		"\t[-d device_index or serial (default: 0)]\n"
@@ -136,7 +142,7 @@ int main(int argc, char **argv)
 	uint32_t out_block_size = DEFAULT_BUF_LENGTH;
 	int verbosity = 0;
 
-	while ((opt = getopt(argc, argv, "d:f:g:s:w:b:n:p:O:SHv")) != -1) {
+	while ((opt = getopt(argc, argv, "d:f:g:s:w:b:n:p:O:SHvh")) != -1) {
 		switch (opt) {
 		case 'd':
 			dev_index = verbose_device_search(optarg);
@@ -175,6 +181,7 @@ int main(int argc, char **argv)
 		case 'v':
 			++verbosity;
 			break;
+		case 'h':
 		default:
 			usage();
 			break;
@@ -227,11 +234,11 @@ int main(int argc, char **argv)
 	/* Set the sample rate */
 	verbose_set_sample_rate(dev, samp_rate);
 
-	/* Set the tuner bandwidth */
-	verbose_set_bandwidth(dev, bandwidth);
-
 	/* Set the frequency */
 	verbose_set_frequency(dev, frequency);
+
+	/* Set the tuner bandwidth */
+	verbose_set_bandwidth(dev, bandwidth);
 
 	if (0 == gain) {
 		 /* Enable automatic gain */

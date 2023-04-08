@@ -82,6 +82,7 @@
 #include "rtl-sdr.h"
 #include "convenience/convenience.h"
 #include "convenience/wavewrite.h"
+#include "version.h"
 
 #define DEFAULT_SAMPLE_RATE		24000
 #define DEFAULT_BUF_LENGTH		(1 * 16384)
@@ -244,9 +245,14 @@ struct cmd_state cmd;
 
 void usage(void)
 {
-	printf(
-		"rtl_fm, a simple narrow band FM demodulator for RTL2832 based DVB-T receivers\n\n"
-		"Use:\trtl_fm -f freq [-options] [filename]\n"
+	printf("rtl_fm, a simple narrow band FM demodulator for RTL2832 based DVB-T receivers\n"
+		   "Version %d.%d.%d.%d, %s\n",
+		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
+	printf("rtlsdr library %d.%d.%d.%d %s\n\n",
+		rtlsdr_get_version()>>24, rtlsdr_get_version()>>16 & 0xFF,
+		rtlsdr_get_version()>>8 & 0xFF, rtlsdr_get_version() & 0xFF,
+		rtlsdr_get_ver_id() );
+	printf("Use:\trtl_fm -f freq [-options] [filename]\n"
 		"\t-f frequency_to_tune_to [Hz]\n"
 		"\t	use multiple -f for scanning (requires squelch)\n"
 		"\t	ranges supported, -f 118M:137M:25k\n"

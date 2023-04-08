@@ -37,6 +37,7 @@
 #include <fcntl.h>
 #include <io.h>
 #include "getopt/getopt.h"
+#include "version.h"
 
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #define round(x) (x > 0.0 ? floor(x + 0.5): ceil(x - 0.5))
@@ -67,9 +68,14 @@ struct dongle_state dongle;
 
 void usage(void)
 {
-	printf(
-		"rtl_ir\n\n"
-		"Use:\trtl_ir [-options]\n"
+	printf("rtl_ir, display received IR signals\n"
+		   "Version %d.%d.%d.%d, %s\n",
+		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
+	printf("rtlsdr library %d.%d.%d.%d %s\n\n",
+		rtlsdr_get_version()>>24, rtlsdr_get_version()>>16 & 0xFF,
+		rtlsdr_get_version()>>8 & 0xFF, rtlsdr_get_version() & 0xFF,
+		rtlsdr_get_ver_id() );
+	printf("Use:\trtl_ir [-options]\n"
 		"\t[-d device_index (default: 0)]\n"
 		"\t[-w wait_usec]\tDelay to wait before each iteration (10000)\n"
 		"\t[-c max_count]\tMaximum number of loop iterations (0)\n"

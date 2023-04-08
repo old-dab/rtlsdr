@@ -267,8 +267,14 @@ static void show_adc_level(uint8_t *buf, int len, struct iq_state *iq)
 
 void usage(void)
 {
-	printf("\n"
-		"Usage:\t[-a listen address]\n"
+	printf("rtl2_tcp, an I/Q spectrum server for RTL2832 based DVB-T receivers\n"
+		   "Version %d.%d.%d.%d for QIRX, %s\n",
+		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
+	printf("rtlsdr library %d.%d.%d.%d %s\n\n",
+		rtlsdr_get_version()>>24, rtlsdr_get_version()>>16 & 0xFF,
+		rtlsdr_get_version()>>8 & 0xFF, rtlsdr_get_version() & 0xFF,
+		rtlsdr_get_ver_id() );
+	printf("Usage:\t[-a listen address]\n"
 		"\t[-b number of buffers (default: 15, set by library)]\n"
 		"\t[-c correct I/Q-Ratio\n"
 		"\t[-f frequency to tune to [Hz]]\n"
@@ -758,14 +764,14 @@ int main(int argc, char **argv)
 	struct sigaction sigact, sigign;
 #endif
 
-	printf("rtl2_tcp, an I/Q spectrum server for RTL2832 based DVB-T receivers\n"
+	/*printf("rtl2_tcp, an I/Q spectrum server for RTL2832 based DVB-T receivers\n"
 		   "Version %d.%d.%d.%d for QIRX, %s\n\n",
-		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
+		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);*/
 
 #ifdef DEBUG
-	while ((opt = getopt(argc, argv, "a:b:cd:f:g:kl:n:op:us:vr:w:D:LITP:")) != -1)
+	while ((opt = getopt(argc, argv, "a:b:cd:f:g:kl:n:op:us:vr:w:D:LITP:h")) != -1)
 #else
-	while ((opt = getopt(argc, argv, "a:b:cd:f:g:kl:n:op:us:vr:w:D:TP:")) != -1)
+	while ((opt = getopt(argc, argv, "a:b:cd:f:g:kl:n:op:us:vr:w:D:TP:h")) != -1)
 #endif
 	{
 		switch (opt) {

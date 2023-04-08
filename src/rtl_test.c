@@ -38,6 +38,7 @@
 
 #include "rtl-sdr.h"
 #include "convenience/convenience.h"
+#include "version.h"
 
 #define DEFAULT_SAMPLE_RATE		2048000
 
@@ -79,10 +80,14 @@ static unsigned int ppm_duration = PPM_DURATION;
 
 void usage(void)
 {
-	printf(
-		"rtl_test, a benchmark tool for RTL2832 based DVB-T receivers\n\n"
-		"Usage:\n"
-		"\t[-b number of buffers (default: 15, set by library)]\n"
+	printf("rtl_test, a benchmark tool for RTL2832 based DVB-T receivers\n"
+		   "Version %d.%d.%d.%d, %s\n",
+		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
+	printf("rtlsdr library %d.%d.%d.%d %s\n\n",
+		rtlsdr_get_version()>>24, rtlsdr_get_version()>>16 & 0xFF,
+		rtlsdr_get_version()>>8 & 0xFF, rtlsdr_get_version() & 0xFF,
+		rtlsdr_get_ver_id() );
+	printf("Usage:\t[-b number of buffers (default: 15, set by library)]\n"
 		"\t[-d device_index or serial (default: 0)]\n"
 		"\t[-l length of single buffer in units of 512 samples (default: 64)]\n"
 		"\t[-s samplerate (default: 2048000 Hz)]\n"

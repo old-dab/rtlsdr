@@ -29,6 +29,7 @@
 #endif
 
 #include "rtl-sdr.h"
+#include "version.h"
 
 #define EEPROM_SIZE	256
 #define MAX_STR_SIZE	256
@@ -66,11 +67,14 @@ void dump_config(rtlsdr_config_t *conf)
 
 void usage(void)
 {
-	printf(
-		"rtl_eeprom, an EEPROM programming tool for "
-		"RTL2832 based DVB-T receivers\n\n"
-		"Usage:\n"
-		"\t[-d device_index (default: 0)]\n"
+	printf("rtl_eeprom, an EEPROM programming tool for RTL2832 based DVB-T receivers\n"
+		   "Version %d.%d.%d.%d, %s\n",
+		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
+	printf("rtlsdr library %d.%d.%d.%d %s\n\n",
+		rtlsdr_get_version()>>24, rtlsdr_get_version()>>16 & 0xFF,
+		rtlsdr_get_version()>>8 & 0xFF, rtlsdr_get_version() & 0xFF,
+		rtlsdr_get_ver_id() );
+	printf("Usage:\t[-d device_index (default: 0)]\n"
 		"\t[-m <str> set manufacturer string]\n"
 		"\t[-p <str> set product string]\n"
 		"\t[-M <id> set manufacturer ID (aka vendor ID) in hexadecimal]\n"
