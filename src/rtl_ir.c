@@ -37,7 +37,6 @@
 #include <fcntl.h>
 #include <io.h>
 #include "getopt/getopt.h"
-#include "version.h"
 
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #define round(x) (x > 0.0 ? floor(x + 0.5): ceil(x - 0.5))
@@ -49,6 +48,7 @@
 
 #include "rtl-sdr.h"
 #include "convenience/convenience.h"
+#include "version.h"
 
 static volatile int do_exit = 0;
 

@@ -42,7 +42,7 @@ void executeInBackground( char * file, char * args, char * searchStr[], char * r
 
 extern uint32_t	waveDataSize;
 void waveWriteHeader(unsigned samplerate, unsigned freq, int bitsPerSample, int numChannels, FILE * f);
-void waveFinalizeHeader();
+void waveFinalizeHeader(FILE * f);
 
 #ifdef __cplusplus
 }
