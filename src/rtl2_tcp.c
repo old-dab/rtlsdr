@@ -108,6 +108,7 @@ int lna_state = 3;
 int numDevices = 0;
 uint32_t serialCRCs[MAX_DEVICES];
 volatile int do_exit = 0;
+static clock_t time1 = 0;
 
 static uint32_t frequency = 100000000, samp_rate = 2048000;
 static enum rtlsdr_ds_mode ds_mode = RTLSDR_DS_IQ;
@@ -243,21 +244,11 @@ static void show_adc_level(uint8_t *buf, int len, struct iq_state *iq)
 	if(iq->plot_count==125)
 	{
 		float dbi;
-		int overflow = 0;
-		for(i=0; i<len; i+=2)
-		{
-			if ((buf[i] == 0) || (buf[i] == 255))
-				overflow++;
-		}
 		U = sqrt(iq->effective) * 3.5;
 		dbi = 20 * log10(U);
 		if(dbi >= iq->dbi+0.01f || dbi <= iq->dbi-0.01f)
 		{
 			printf("U = %.1f mV = %.2f dBmV", U, dbi);
-			if(overflow > 10)
-				printf(" overflow!\n");
-			else
-				printf(", Input = %.1f dBm\n", dbi-47.0-tuner_gain/10.0);
 			iq->dbi = dbi;
 		}
 		iq->plot_count = 0;
@@ -352,9 +343,21 @@ static void iqBalance(uint8_t *buf, int len, struct iq_state *iq)
 	}
 }
 
+static int detect_overload(uint8_t *buf, int len)
+{
+	int overload_count = 0;
+	for(int i=0; i<len; i++)
+	{
+		if ((buf[i] == 0) || (buf[i] == 255))
+			overload_count++;
+	}
+	return (4000 * overload_count >= len);
+}
+
 static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 {
 	struct iq_state *iq = ctx;
+	clock_t time2;
 
 	if (!ctx)
 		return;
@@ -363,6 +366,12 @@ static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 	{
 		struct llist *rpt = (struct llist*)malloc(sizeof(struct llist));
 		rpt->data = (char*)malloc(len);
+		time2 = clock();
+		if((time2 - time1) >= (CLK_TCK / 4)) // >= 0.25s
+		{
+			overload = detect_overload(buf, len);
+			time1 = time2;
+		}
 		if(iq->correct_iq)
 			iqBalance(buf, len, iq);
 		memcpy(rpt->data, buf, len);

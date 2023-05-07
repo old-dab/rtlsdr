@@ -103,13 +103,15 @@ struct iq_state
 static rtlsdr_dev_t *dev = NULL;
 
 static int verbosity = 0;
-
+static clock_t time1 = 0;
 static int global_numq = 0;
 static struct llist *ll_buffers = 0;
 static int llbuf_num = 500;
 
 static volatile int do_exit = 0;
 static volatile int ctrlC_exit = 0;
+
+int overload = 0;
 
 #ifdef DEBUG
 static void show_adc_level(uint8_t *buf, int len, struct iq_state *iq)
@@ -126,21 +128,11 @@ static void show_adc_level(uint8_t *buf, int len, struct iq_state *iq)
 	if(iq->plot_count==125)
 	{
 		float dbi;
-		int overflow = 0;
-		for(i=0; i<len; i+=2)
-		{
-			if ((buf[i] == 0) || (buf[i] == 255))
-				overflow++;
-		}
 		U = sqrt(iq->effective) * 3.5;
 		dbi = 20 * log10(U);
 		if(dbi >= iq->dbi+0.01f || dbi <= iq->dbi-0.01f)
 		{
-			printf("I = %.1f mV = %.2f dBmV ", U, dbi);
-			if(overflow > 10)
-				printf("overflow!\n");
-			else
-				printf("\n");
+			printf("I = %.1f mV = %.2f dBmV\n", U, dbi);
 			iq->dbi = dbi;
 		}
 		iq->plot_count = 0;
@@ -163,7 +155,7 @@ void usage(void)
 		"\t[-d device index or serial (default: 0)]\n"
 		"\t[-f frequency to tune to [Hz]]\n"
 		"\t[-g gain in dB (default: 0 for auto)]\n"
-		"\t[-k re-kalibrate image rejection for R820T/R828D\n"
+		"\t[-k kalibrate image rejection for R820T/R828D and store the results in Eeprom\n"
 		"\t[-l length of single buffer in units of 512 samples (default: 256)]\n"
 		"\t[-n max number of linked list buffers to keep (default: 500)]\n"
 		"\t[-o set offset tuning\n"
@@ -235,9 +227,21 @@ static void iqBalance(uint8_t *buf, int len, struct iq_state *iq)
 	}
 }
 
+static int detect_overload(uint8_t *buf, int len)
+{
+	int overload_count = 0;
+	for(int i=0; i<len; i++)
+	{
+		if ((buf[i] == 0) || (buf[i] == 255))
+			overload_count++;
+	}
+	return (4000 * overload_count >= len);
+}
+
 static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 {
 	struct iq_state *iq = ctx;
+	clock_t time2;
 
 	if (!ctx) {
 		return;}
@@ -245,6 +249,12 @@ static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 	if(!do_exit) {
 		struct llist *rpt = (struct llist*)malloc(sizeof(struct llist));
 		rpt->data = (char*)malloc(len);
+		time2 = clock();
+		if((time2 - time1) >= (CLK_TCK / 4)) // >= 0.25s
+		{
+			overload = detect_overload(buf, len);
+			time1 = time2;
+		}
 		if(iq->correct_iq)
 			iqBalance(buf, len, iq);
 		memcpy(rpt->data, buf, len);

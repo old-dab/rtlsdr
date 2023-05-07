@@ -337,8 +337,8 @@ void *ctrl_thread_fn(void *arg)
 				len = prepareIntCommand(txbuf, len, IND_GAIN, tuner_gain-30, 2); // -3 dB Korrektur für Qirx
 				len = prepareStringCommand(txbuf, len, REPORT_I2C_REGS, reg_values, reglen);
 			}
-			len = prepareIntCommand(txbuf, len, IND_LNA_STATE, lna_state, 1);
-			//len = prepareIntCommand(txbuf, len, IND_OVERLOAD_A, overload, 1);
+			//len = prepareIntCommand(txbuf, len, IND_LNA_STATE, lna_state, 1);
+			len = prepareIntCommand(txbuf, len, IND_OVERLOAD_A, overload, 1);
 			break;
 
 		default:
@@ -346,9 +346,9 @@ void *ctrl_thread_fn(void *arg)
 			break;
 		}
 
-        // total length of the sent buffer
-        txbuf[0] = (len >> 8) & 0xff;
-        txbuf[1] = len & 0xff;
+		// total length of the sent buffer
+		txbuf[0] = (len >> 8) & 0xff;
+		txbuf[1] = len & 0xff;
 
 		if (!sendBuffer(controlSocket, (char *)txbuf, len, do_exit))
 			break;
@@ -364,4 +364,3 @@ close:
 	printf("Control thread terminated\n");
 	return 0;
 }
-

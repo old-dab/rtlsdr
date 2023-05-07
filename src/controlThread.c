@@ -59,6 +59,8 @@ typedef int socklen_t;
 #define MAX_I2C_REGISTERS  256
 #define TX_BUF_LEN (10+MAX_I2C_REGISTERS)
 
+extern int overload;
+
 ctrl_thread_data_t ctrl_thread_data;
 
 void *ctrl_thread_fn(void *arg)
@@ -87,7 +89,7 @@ void *ctrl_thread_fn(void *arg)
 	int wait = data->wait;
 	int report_i2c = data->report_i2c;
 	char *addr = data->addr;
-	int* do_exit = data->pDoExit;
+	volatile int* do_exit = data->pDoExit;
 	u_long blockmode = 1;
 	int retval;
 
@@ -113,7 +115,7 @@ void *ctrl_thread_fn(void *arg)
 #endif
 
 	while (1) {
-		//printf("listening on Control port %d...\n", port);
+		printf("listening on control port %d...\n", port);
 		retval = listen(listensocket, 1);
 		if (retval == SOCKET_ERROR)
 			goto close;
@@ -165,31 +167,35 @@ void *ctrl_thread_fn(void *arg)
 				goto sleep;
 
 			//Big Endian / Network Byte Order
-            txlen = 2; // For the first two bytes
-            // "gain" indication
-            txbuf[2] = 0;
-            // "gain" length
-            txbuf[3] = 0;
-            txbuf[4] = 2;
-            // "gain" value
-            txbuf[5] = (tuner_gain >> 8) & 0xff;
-            txbuf[6] = tuner_gain & 0xff;
-            txlen += 5;
+			txlen = 2; // For the first two bytes
+			// "gain" indication
+			txbuf[2] = 0;
+			// "gain" length
+			txbuf[3] = 0;
+			txbuf[4] = 2;
+			// "gain" value
+			txbuf[5] = (tuner_gain >> 8) & 0xff;
+			txbuf[6] = tuner_gain & 0xff;
+			// "overload" indication
+			txbuf[7] = 0x86;
+			// "overload" length
+			txbuf[8] = 0;
+			txbuf[9] = 1;
+			txbuf[10] = overload;
+			txlen += 9;
 
-            // "register" indication
-            txbuf[7] = REPORT_I2C_REGS;
+			// "register" indication
+			txbuf[11] = REPORT_I2C_REGS;
+			// "register" length
+			txbuf[12] = ((reglen) >> 8) & 0xff;
+			txbuf[13] = reglen & 0xff;
+			// register values
+			memcpy(&txbuf[14], reg_values, reglen);
+			txlen += reglen+3;
 
-            // "register" length
-            txbuf[8] = ((reglen) >> 8) & 0xff;
-            txbuf[9] = reglen & 0xff;
-
-            // register values
-            memcpy(&txbuf[10], reg_values, reglen);
-            txlen += reglen+3;
-
-            // total length of the sent buffer
-            txbuf[0] = (txlen >> 8) & 0xff;
-            txbuf[1] = txlen & 0xff;
+			// total length of the sent buffer
+			txbuf[0] = (txlen >> 8) & 0xff;
+			txbuf[1] = txlen & 0xff;
 
 			/* now start (possibly blocking) transmission */
 			bytessent = 0;
