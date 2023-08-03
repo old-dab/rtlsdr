@@ -60,10 +60,11 @@ void usage(void)
 		"\t[-w tuner_bandwidth (default: automatic)]\n"
 		"\t[-d device_index or serial (default: 0)]\n"
 		"\t[-g gain (default: 0 for auto)]\n"
+		"\t    0 = hardware AGC, <0 = software AGC, >0 = gain in dB\n"
 		"\t[-p ppm_error (default: 0)]\n"
 		"\t[-O set RTL options string seperated with ':' ]\n"
-		"\t	f=<freqHz>:bw=<bw_in_kHz>:agc=<tuner_gain_mode>:gain=<tenth_dB>\n"
-		"\t	dagc=<rtl_agc>:ds=<direct_sampling_mode>:T=<bias_tee>\n"
+		"\t    f=<freqHz>:bw=<bw_in_kHz>:agc=<tuner_gain_mode>:gain=<tenth_dB>\n"
+		"\t    dagc=<rtl_agc>:ds=<direct_sampling_mode>:T=<bias_tee>\n"
 		"\t[-b output_block_size (default: 16 * 16384)]\n"
 		"\t[-n number of samples to read (default: 0, infinite)]\n"
 		"\t[-S force sync output (default: async)]\n"
@@ -243,6 +244,12 @@ int main(int argc, char **argv)
 	if (0 == gain) {
 		 /* Enable automatic gain */
 		verbose_auto_gain(dev);
+		rtlsdr_set_agc_mode(dev, 1);
+		printf("Set agc mode 1\n");
+	}
+	else if(gain < 0) {
+		printf("Set software AGC\n");
+		rtlsdr_set_tuner_gain_mode(dev, 2);
 	} else {
 		/* Enable manual gain */
 		gain = nearest_gain(dev, gain);

@@ -174,6 +174,7 @@ void *ctrl_thread_fn(void *arg)
 			txbuf[3] = 0;
 			txbuf[4] = 2;
 			// "gain" value
+			tuner_gain -= 30;
 			txbuf[5] = (tuner_gain >> 8) & 0xff;
 			txbuf[6] = tuner_gain & 0xff;
 			// "overload" indication

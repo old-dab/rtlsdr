@@ -276,7 +276,6 @@ void *ctrl_thread_fn(void *arg)
 	while (1)
 	{
 		unsigned char tmp[1024];
-		int gains[100];
 		int len;
 		int buflen = 0;
 		int reglen = 0;
@@ -314,7 +313,7 @@ void *ctrl_thread_fn(void *arg)
 			tuner_type = rtlsdr_get_tuner_type(dev);
 			if (tuner_type >= 0)
 				len = prepareIntCommand(txbuf, len, IND_RX_TYPE, tuner_type, 1);
-			tuner_gain_count = rtlsdr_get_tuner_gains(dev, gains);
+			tuner_gain_count = rtlsdr_get_tuner_gains(dev, NULL);
 			if (tuner_gain_count >= 0)
 				len = prepareIntCommand(txbuf, len, IND_GAIN_COUNT, tuner_gain_count, 1);
 			printf("tuner_gain_count = %d\n", tuner_gain_count);

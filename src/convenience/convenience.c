@@ -368,5 +368,3 @@ int verbose_device_search(char *s)
 	printf("No matching devices found.\n");
 	return -1;
 }
-
-

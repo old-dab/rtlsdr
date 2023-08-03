@@ -62,7 +62,7 @@ typedef struct rtlsdr_tuner_iface {
 	int (*exit)(void *);
 	int (*set_freq)(void *, uint32_t freq /* Hz */);
 	int (*set_bw)(void *, int bw /* Hz */, uint32_t *applied_bw /* configured bw in Hz */, int apply /* 1 == configure it!, 0 == deliver applied_bw */);
-	int (*set_gain)(void *, int gain /* tenth dB */);
+	int (*set_gain_index)(void *, unsigned int index);
 	int (*set_if_gain)(void *, int stage, int gain /* tenth dB */);
 	int (*set_gain_mode)(void *, int manual);
 	int (*set_i2c_register)(void *, unsigned i2c_register, unsigned data /* byte */, unsigned mask /* byte */ );
@@ -107,6 +107,22 @@ static const int fir_bw[] = {2400, 1500, 300};
 
 static int cal_imr = 0;
 
+enum softagc_mode {
+	SOFTAGC_OFF = 0,	/* off */
+	SOFTAGC_ON			/* operate full time - attenuate and gain */
+};
+
+struct softagc_state
+{
+	pthread_t		command_thread;
+	pthread_mutex_t	mutex;
+	pthread_cond_t	cond;
+	volatile int	exit_command_thread;
+	volatile int	command_newGain;
+	volatile int	command_changeGain;
+	enum softagc_mode	softAgcMode;
+};
+
 struct rtlsdr_dev {
 #ifdef _WIN32
 	WINUSB_INTERFACE_HANDLE devh;
@@ -140,6 +156,10 @@ struct rtlsdr_dev {
 	uint32_t offs_freq; /* Hz */
 	int corr; /* ppb */
 	int gain; /* tenth dB */
+	unsigned int gain_index;
+	unsigned int gain_count;
+	int gain_mode;
+	int gains[24];
 	enum rtlsdr_ds_mode direct_sampling_mode;
 	uint32_t direct_sampling_threshold; /* Hz */
 	struct e4k_state e4k_s;
@@ -154,10 +174,14 @@ struct rtlsdr_dev {
 	int rc_active;
 	int verbose;
 	int agc_mode;
+	struct 	softagc_state softagc;
 };
 
 static int rtlsdr_update_ds(rtlsdr_dev_t *dev, uint32_t freq);
 static int rtlsdr_set_spectrum_inversion(rtlsdr_dev_t *dev, int sideband);
+static void softagc_init(rtlsdr_dev_t *dev);
+static void softagc_close(rtlsdr_dev_t *dev);
+static void softagc(rtlsdr_dev_t *dev, unsigned char *buf, int len);
 
 /* generic tuner interface functions, shall be moved to the tuner implementations */
 int e4000_init(void *dev) {
@@ -181,9 +205,9 @@ int e4000_set_bw(void *dev, int bw, uint32_t *applied_bw, int apply) {
 		return 0;
 	return e4k_set_bandwidth(&devt->e4k_s, bw, applied_bw, apply);
 }
-int e4000_set_gain(void *dev, int gain) {
+int e4000_set_gain_index(void *dev, unsigned int index) {
 	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
-	return e4k_set_gain(&devt->e4k_s, gain);
+	return e4k_set_gain_index(&devt->e4k_s, index);
 }
 int e4000_set_if_gain(void *dev, int stage, int gain) {
 	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
@@ -248,9 +272,9 @@ int r820t_set_bw(void *dev, int bw, uint32_t *applied_bw, int apply) {
 	return rtlsdr_set_center_freq(devt, devt->freq);
 }
 
-int r820t_set_gain(void *dev, int gain) {
+int r820t_set_gain_index(void *dev, unsigned int index) {
 	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
-	return r82xx_set_gain(&devt->r82xx_p, gain);
+	return r82xx_set_gain_index(&devt->r82xx_p, index);
 }
 
 int r820t_set_gain_mode(void *dev, int manual) {
@@ -287,37 +311,37 @@ static rtlsdr_tuner_iface_t tuners[] = {
 	},
 	{
 		e4000_init, e4000_exit,
-		e4000_set_freq, e4000_set_bw, e4000_set_gain, e4000_set_if_gain,
+		e4000_set_freq, e4000_set_bw, e4000_set_gain_index, e4000_set_if_gain,
 		e4000_set_gain_mode, e4000_set_i2c_register,
 		e4000_get_i2c_register, NULL, e4k_get_gains
 	},
 	{
 		fc0012_init, fc0012_exit,
-		fc0012_set_freq, fc001x_set_bw, fc0012_set_gain, NULL,
+		fc0012_set_freq, fc001x_set_bw, fc0012_set_gain_index, NULL,
 		fc001x_set_gain_mode, fc001x_set_i2c_register,
 		fc0012_get_i2c_register, NULL, fc001x_get_gains
 	},
 	{
 		fc0013_init, fc0013_exit,
-		fc0013_set_freq, fc001x_set_bw, fc0013_set_gain, NULL,
+		fc0013_set_freq, fc001x_set_bw, fc0013_set_gain_index, NULL,
 		fc001x_set_gain_mode, fc001x_set_i2c_register,
 		fc0013_get_i2c_register, NULL, fc001x_get_gains
 	},
 	{
 		fc2580_init, fc2580_exit,
-		fc2580_set_freq, fc2580_set_bw, fc2580_set_gain, NULL,
+		fc2580_set_freq, fc2580_set_bw, fc2580_set_gain_index, NULL,
 		fc2580_set_gain_mode, fc2580_set_i2c_register,
 		fc2580_get_i2c_register, NULL, fc2580_get_gains
 	},
 	{
 		r820t_init, r820t_exit,
-		r820t_set_freq, r820t_set_bw, r820t_set_gain, NULL,
+		r820t_set_freq, r820t_set_bw, r820t_set_gain_index, NULL,
 		r820t_set_gain_mode, r820t_set_i2c_register,
 		r820t_get_i2c_register, r820t_set_sideband, r82xx_get_gains
 	},
 	{
 		r820t_init, r820t_exit,
-		r820t_set_freq, r820t_set_bw, r820t_set_gain, NULL,
+		r820t_set_freq, r820t_set_bw, r820t_set_gain_index, NULL,
 		r820t_set_gain_mode, r820t_set_i2c_register,
 		r820t_get_i2c_register, r820t_set_sideband, r82xx_get_gains
 	},
@@ -1456,25 +1480,47 @@ int rtlsdr_set_tuner_bandwidth(rtlsdr_dev_t *dev, uint32_t bw )
 }
 
 
-
-int rtlsdr_set_tuner_gain(rtlsdr_dev_t *dev, int gain)
+int rtlsdr_set_tuner_gain_index(rtlsdr_dev_t *dev, unsigned int index)
 {
 	int r = 0;
 
 	if (!dev || !dev->tuner)
 		return -1;
 
-	if (dev->tuner->set_gain) {
-		rtlsdr_set_i2c_repeater(dev, 1);
-		r = dev->tuner->set_gain((void *)dev, gain);
-		rtlsdr_set_i2c_repeater(dev, 0);
-	}
+	if(index >= dev->gain_count - 1)
+		index = dev->gain_count - 1;
+
+	if(dev->gain_mode == 0)//hardware mode
+		return 0;
+
+	rtlsdr_set_i2c_repeater(dev, 1);
+	r = dev->tuner->set_gain_index((void *)dev, index);
+	rtlsdr_set_i2c_repeater(dev, 0);
 
 	if (!r)
-		dev->gain = gain;
+		dev->gain_index = index;
+	else
+		dev->gain_index = 0;
+	return r;
+}
+
+
+int rtlsdr_set_tuner_gain(rtlsdr_dev_t *dev, int gain)
+{
+	int r = 0;
+	unsigned int i;
+
+	if (!dev || !dev->tuner)
+		return -1;
+
+	for (i = 0; i < dev->gain_count; i++)
+		if ((dev->gains[i] >= gain) || (i+1 == dev->gain_count))
+			break;
+	r = rtlsdr_set_tuner_gain_index(dev, i);
+	if (!r)
+		dev->gain = dev->gains[i];
 	else
 		dev->gain = 0;
-
 	return r;
 }
 
@@ -1509,11 +1555,18 @@ int rtlsdr_set_tuner_gain_mode(rtlsdr_dev_t *dev, int mode)
 	if (!dev || !dev->tuner)
 		return -1;
 
-	if (dev->tuner->set_gain_mode) {
-		rtlsdr_set_i2c_repeater(dev, 1);
-		r = dev->tuner->set_gain_mode((void *)dev, mode);
-		rtlsdr_set_i2c_repeater(dev, 0);
+	rtlsdr_set_i2c_repeater(dev, 1);
+	r = dev->tuner->set_gain_mode((void *)dev, mode);
+	rtlsdr_set_i2c_repeater(dev, 0);
+
+	dev->gain_mode = mode;
+	if(mode == 2)
+	{
+		r |= rtlsdr_set_tuner_gain_index(dev, 0);
+		dev->softagc.softAgcMode = SOFTAGC_ON;
 	}
+	else
+		dev->softagc.softAgcMode = SOFTAGC_OFF;
 
 	return r;
 }
@@ -2381,6 +2434,7 @@ demod_found:
 		r = dev->tuner->init(dev);
 
 	rtlsdr_set_i2c_repeater(dev, 0);
+	softagc_init(dev);
 
 	*out_dev = dev;
 	return 0;
@@ -2438,6 +2492,7 @@ int rtlsdr_close(rtlsdr_dev_t *dev)
 	libusb_close(dev->devh);
 	libusb_exit(dev->ctx);
 #endif
+	softagc_close(dev);
 	free(dev);
 	dev = 0;
 	return 0;
@@ -2554,7 +2609,10 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 				                           &NumberOfBytesTransferred, TRUE))
 	    	{
 				if (NumberOfBytesTransferred && cb)
+				{
+					softagc(dev, xfer_buf[i], NumberOfBytesTransferred);
 					cb(xfer_buf[i], NumberOfBytesTransferred, ctx);
+				}
 			}
 			else
 			{
@@ -2622,6 +2680,8 @@ static void LIBUSB_CALL _libusb_callback(struct libusb_transfer *xfer)
 
 	if (LIBUSB_TRANSFER_COMPLETED == xfer->status) {
 		if (dev->cb)
+		{
+			softagc(dev, xfer->buffer, xfer->actual_length);
 			dev->cb(xfer->buffer, xfer->actual_length, dev->cb_ctx);
 		libusb_submit_transfer(xfer); /* resubmit transfer */
 		dev->xfer_errors = 0;
@@ -3038,8 +3098,8 @@ const char * rtlsdr_get_opt_help(int longInfo)
 		"\t\tf=<freqHz>            set tuner frequency\n"
 		"\t\tbw=<bw_in_kHz>        set tuner bandwidth\n"
 		"\t\tsb=<sideband>         set tuner sideband/mirror: '0' for lower side band,\n"
-		"\t\t                        '1' for upper side band. default for R820T/2: '0'\n"
-		"\t\tagc=<tuner_gain_mode> activates tuner agc with '1'. deactivates with '0'\n"
+		"\t\t                         '1' for upper side band. default for R820T/2: '0'\n"
+		"\t\tagc=<tuner_gain_mode> 0 = HW AGC, 1 = manual, 2 = SW AGC\n"
 		"\t\tgain=<tenth_dB>       set tuner gain. 400 for 40.0 dB\n"
 		"\t\tdagc=<rtl_agc>        set RTL2832's digital agc (after ADC). 1 to activate. 0 to deactivate\n"
 		"\t\tds=<direct_sampling>  deactivate/bypass tuner with 1\n"
@@ -3087,9 +3147,9 @@ int rtlsdr_set_opt_string(rtlsdr_dev_t *dev, const char *opts, int verbose)
 			ret = rtlsdr_set_tuner_bandwidth(dev, bw);
 		}
 		else if (!strncmp(optPart, "agc=", 4)) {
-			int manual = 1 - atoi(optPart +4);	// invert logic
+			int manual = atoi(optPart +4);
 			if (verbose)
-				printf("rtlsdr_set_opt_string(): parsed tuner gain mode, manual=%d\n", manual);
+				printf("rtlsdr_set_opt_string(): parsed tuner gain mode %d\n", manual);
 			ret = rtlsdr_set_tuner_gain_mode(dev, manual);
 		}
 		else if (!strncmp(optPart, "gain=", 5)) {
@@ -3137,12 +3197,114 @@ void rtlsdr_cal_imr(const int val)
 	cal_imr = val;
 }
 
-const char * rtlsdr_get_ver_id() {
+const char * rtlsdr_get_ver_id()
+{
 	return RTL_VER_ID " (" __DATE__ ")";
 }
 
-uint32_t rtlsdr_get_version() {
+uint32_t rtlsdr_get_version()
+{
 	return ((uint32_t)RTLSDR_MAJOR << 24) | ((uint32_t)RTLSDR_MINOR << 16) |
 			((uint32_t)RTLSDR_MICRO << 8) | (uint32_t)RTLSDR_NANO;
 }
 
+#define safe_cond_signal(n, m) pthread_mutex_lock(m); pthread_cond_signal(n); pthread_mutex_unlock(m)
+#define safe_cond_wait(n, m) pthread_mutex_lock(m); pthread_cond_wait(n, m); pthread_mutex_unlock(m)
+
+static void *softagc_control_worker(void *arg)
+{
+	rtlsdr_dev_t *dev = (rtlsdr_dev_t *)arg;
+	struct softagc_state *agc = &dev->softagc;
+	while(1)
+	{
+		safe_cond_wait(&agc->cond, &agc->mutex);
+
+		if (agc->exit_command_thread)
+			pthread_exit(0);
+
+		if (agc->command_changeGain)
+		{
+			agc->command_changeGain = 0;
+			rtlsdr_set_tuner_gain_index(dev, agc->command_newGain);
+		}
+	}
+	return NULL;
+}
+
+static void softagc_init(rtlsdr_dev_t *dev)
+{
+	pthread_attr_t attr;
+	struct softagc_state *agc = &dev->softagc;
+
+	/* prepare thread */
+	dev->gain_count = rtlsdr_get_tuner_gains(dev, dev->gains);
+	dev->gain = -1;
+	dev->gain_mode = 0; //hardware AGC
+	dev->gain_index = 0;
+
+	agc->exit_command_thread = 0;
+	agc->command_newGain = 0;
+	agc->command_changeGain = 0;
+	agc->softAgcMode = SOFTAGC_OFF;
+
+	/* create thread */
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+	pthread_mutex_init(&agc->mutex, NULL);
+	pthread_cond_init(&agc->cond, NULL);
+	pthread_create(&agc->command_thread, &attr, softagc_control_worker, dev);
+	pthread_attr_destroy(&attr);
+}
+
+static void softagc_close(rtlsdr_dev_t *dev)
+{
+	struct softagc_state *agc = &dev->softagc;
+
+	agc->softAgcMode = SOFTAGC_OFF;
+	agc->exit_command_thread = 1;
+	safe_cond_signal(&agc->cond, &agc->mutex);
+	pthread_join(agc->command_thread, NULL);
+	pthread_cond_destroy(&agc->cond);
+	pthread_mutex_destroy(&agc->mutex);
+}
+
+static void softagc(rtlsdr_dev_t *dev, unsigned char *buf, int len)
+{
+	struct softagc_state *agc = &dev->softagc;
+	int overload = 0;
+	int high_level = 0;
+	unsigned char u;
+
+	if(agc->softAgcMode == SOFTAGC_OFF)
+		return;
+
+	/* detect oversteering */
+	for(int i = 0; i<len; i++ )
+	{
+		u = buf[i];
+		if(u == 0 || u == 255) // 0 dBFS
+			overload++;
+		if(u < 64 || u > 191) // -6 dBFS
+			high_level++;
+	}
+
+	if(8000 * overload >= len)
+	{
+		if(dev->gain_index > 0)
+		{
+			agc->command_newGain = dev->gain_index - 1;
+			agc->command_changeGain = 1;
+			safe_cond_signal(&agc->cond, &agc->mutex);
+		}
+	}
+	else if(8000 * high_level <= len)
+	{
+		if(dev->gain_index < dev->gain_count - 1)
+		{
+			agc->command_newGain = dev->gain_index + 1;
+			agc->command_changeGain = 1;
+			safe_cond_signal(&agc->cond, &agc->mutex);
+		}
+	}
+	return;
+}

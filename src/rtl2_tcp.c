@@ -120,6 +120,7 @@ static	float ppm_error = 0;
 static	uint32_t bandwidth = 0;
 static	int enable_biastee = 0;
 static volatile int ctrlC_exit = 0;
+static int gain_mode = 0;
 extern int tuner_gain;
 
 int sendBuffer(SOCKET socket, const char *txbuf, int len, volatile int *do_exit)
@@ -198,14 +199,19 @@ int	open_device(int dev_index)
 	if (gain == 0)
 	{
 		// Enable automatic gain
+		gain_mode = 0;
 		verbose_auto_gain(dev);
 		rtlsdr_set_agc_mode(dev, 1);
-		printf("set agc mode 1\n");
+		printf("Set agc mode 1\n");
 	}
-	else
-	{
+	else if(gain < 0) {
+		printf("Set software AGC\n");
+		gain_mode = 2;
+		rtlsdr_set_tuner_gain_mode(dev, 2);
+	} else {
 		// Enable manual gain
 		gain = nearest_gain(dev, gain);
+		gain_mode = 1;
 		verbose_gain_set(dev, gain);
 	}
 
@@ -270,6 +276,7 @@ void usage(void)
 		"\t[-c correct I/Q-Ratio\n"
 		"\t[-f frequency to tune to [Hz]]\n"
 		"\t[-g gain in dB (default: 0 for auto)]\n"
+		"\t    0 = hardware AGC, <0 = software AGC, >0 = gain in dB\n"
 		"\t[-k re-kalibrate image rejection for R820T/R828D\n"
 		"\t[-l length of single buffer in units of 512 samples (default: 256)]\n"
 		"\t[-n max number of linked list buffers to keep (default: 500)]\n"
@@ -351,7 +358,7 @@ static int detect_overload(uint8_t *buf, int len)
 		if ((buf[i] == 0) || (buf[i] == 255))
 			overload_count++;
 	}
-	return (4000 * overload_count >= len);
+	return (8000 * overload_count >= len);
 }
 
 static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
@@ -470,26 +477,6 @@ static void *sendStream(void *arg)
 	return NULL;
 }
 
-static int set_gain_by_index(rtlsdr_dev_t *_dev, unsigned int index)
-{
-	int res = 0;
-	int* gains;
-	int count = rtlsdr_get_tuner_gains(_dev, NULL);
-
-	if (count > 0 && (unsigned int)count > index)
-	{
-		gains = malloc(sizeof(int) * count);
-		count = rtlsdr_get_tuner_gains(_dev, gains);
-
-		res = rtlsdr_set_tuner_gain(_dev, gains[index]);
-		if (verbosity)
-			printf("set tuner gain to %.1f dB\n", gains[index] / 10.0);
-
-		free(gains);
-	}
-	return res;
-}
-
 #ifdef _WIN32
 #define __attribute__(x)
 #pragma pack(push, 1)
@@ -550,11 +537,13 @@ static void *receive(void *arg)
 			break;
 		case SET_GAIN_MODE://0x03
 			printf("set gain mode %u\n", param);
+			gain_mode = param;
 			rtlsdr_set_tuner_gain_mode(dev, param);
 			break;
 		case SET_GAIN://0x04
 			printf("set gain %u\n", param);
-			rtlsdr_set_tuner_gain(dev, param);
+			if(gain_mode == 1)
+				rtlsdr_set_tuner_gain(dev, param);
 			break;
 		case SET_FREQUENCY_CORRECTION://0x05
 			printf("set freq correction to %d ppm\n", (int)param);
@@ -562,7 +551,8 @@ static void *receive(void *arg)
 			break;
 		case SET_IF_STAGE://0x06
 			printf("set if stage %d gain %d\n", param >> 16, (short)(param & 0xffff));
-			rtlsdr_set_tuner_if_gain(dev, param >> 16, (short)(param & 0xffff));
+			if(gain_mode == 1)
+				rtlsdr_set_tuner_if_gain(dev, param >> 16, (short)(param & 0xffff));
 			break;
 		case SET_TEST_MODE://0x07
 			printf("set test mode %u\n", param);
@@ -590,7 +580,8 @@ static void *receive(void *arg)
 			break;
 		case SET_TUNER_GAIN_BY_INDEX://0x0d
 			printf("set tuner gain by index %u\n", param);
-			set_gain_by_index(dev, param);
+			if(gain_mode == 1)
+				rtlsdr_set_tuner_gain_index(dev, param);
 			break;
 		case SET_BIAS_TEE://0x0e
 			printf("set bias tee %u\n", param);
@@ -957,7 +948,6 @@ int main(int argc, char **argv)
 		pthread_mutex_lock(&mut);
 		while(CommState != ST_WELCOME_SENT)
 		{
-			//usleep(10000);
 			pthread_cond_wait(&cond, &mut);
 			if(do_exit) break;
 		}
