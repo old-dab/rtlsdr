@@ -895,7 +895,7 @@ static int r82xx_sysfreq_sel(struct r82xx_priv *priv,
 
 int r82xx_set_gain_mode(struct r82xx_priv *priv, int set_manual_gain)
 {
-	printf("manual_gain=%d\n", set_manual_gain);
+	//printf("manual_gain=%d\n", set_manual_gain);
 	return r82xx_write_reg_mask(priv, 0x0c, set_manual_gain ? 0x00 : 0x10, 0x10);
 }
 
@@ -1186,7 +1186,7 @@ int r82xx_set_freq(struct r82xx_priv *priv, uint32_t freq)
 
 	/* if it's an RTL-SDR Blog V4, automatically upconvert by 28.8 MHz if we tune to HF
 	 * so that we don't need to manually set any upconvert offset in the SDR software */
-	upconvert_freq = is_rtlsdr_blog_v4 ? ((freq < MHZ(28.8)) ? (freq + MHZ(28.8)) : freq) : freq;
+	upconvert_freq = is_rtlsdr_blog_v4 ? ((freq <= MHZ(27)) ? (freq + MHZ(28.8)) : freq) : freq;
 
 	priv->freq = upconvert_freq / 1000000;
 	rc = r82xx_set_mux(priv, upconvert_freq);
@@ -1198,7 +1198,7 @@ int r82xx_set_freq(struct r82xx_priv *priv, uint32_t freq)
 		/* determine if notch filters should be on or off notches are turned OFF
 		 * when tuned within the notch band and ON when tuned outside the notch band.
 		 */
-		open_d = (freq <= MHZ(2.2) || (freq >= MHZ(85) && freq <= MHZ(112)) || (freq >= MHZ(172) && freq <= MHZ(242))) ? 0x00 : 0x08;
+		open_d = (freq <= MHZ(8) || (freq >= MHZ(60) && freq <= MHZ(115)) || (freq >= MHZ(160) && freq <= MHZ(230))) ? 0x00 : 0x08;
 		rc = r82xx_write_reg_mask(priv, 0x17, open_d, 0x08);
 		if (rc < 0)
 			goto err;
@@ -1206,7 +1206,7 @@ int r82xx_set_freq(struct r82xx_priv *priv, uint32_t freq)
 		/* select tuner band based on frequency and only switch if there is a band change
 		 *(to avoid excessive register writes when tuning rapidly)
 		 */
-		band = (freq <= MHZ(28.8)) ? HF : ((freq > MHZ(28.8) && freq < MHZ(250)) ? VHF : UHF);
+		band = (freq <= MHZ(27)) ? HF : ((freq > MHZ(27) && freq < MHZ(250)) ? VHF : UHF);
 
 		/* switch between tuner inputs on the RTL-SDR Blog V4 */
 		if (band != priv->input) {
@@ -1248,7 +1248,7 @@ int r82xx_set_freq(struct r82xx_priv *priv, uint32_t freq)
 		}
 
 		/* Open Drain */
-		rc = r82xx_write_reg_mask(priv, 0x17, (freq<75) ? 8 : 0, 0x08);
+		rc = r82xx_write_reg_mask(priv, 0x17, (freq < MHZ(75)) ? 8 : 0, 0x08);
 		if (rc < 0)
 			return rc;
 
