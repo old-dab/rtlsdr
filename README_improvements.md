@@ -21,27 +21,30 @@ The IF amplifier can be set either by an AGC or by software. The RTL2832 enables
 The R820T and R828D tuners require an analog voltage on an AGC line. This is achieved using pulse width modulation followed by an RC low pass. Unfortunately, the capacitor is missing in the "RTL-SDR.COM V4", so the IF-AGC does not work.
 The tuners FC0012/13 and E4000 have a digital AGC. This requires 2 AGC lines. 00 and 11 means "Hold gain", 01 means "Increase gain", 10 means "Decrease gain". The FC2580 has an internal AGC.
 The realization of the mixer gain is solved in different ways depending on the tuner. Sometimes there is its own AGC, sometimes it is coupled to the AGC of the LNA or the IF.
-The total gain of all tuners can be read in steps of 1/10 dB. The accuracy is approximately ± 3 dB in the frequency range 50 MHz to 1 GHz , and ± 5 dB from 1 GHz up. The AGC achieves a control range of around 100 dB for all tuners.
+The total gain of all tuners can be read in steps of 1/10 dB. The accuracy is approximately Â± 3 dB in the frequency range 50 MHz to 1 GHz , and Â± 5 dB from 1 GHz up. The AGC achieves a control range of around 100 dB for all tuners.
 A disadvantage of the IF-AGC is that the overall gain of the tuner can no longer be determined accurately. The reason for the tuners R820T and R828D is that the resistor in the RC low pass varies depending on the dongle manufacturer. This has an influence on the control voltage. The software is adapted to the "RTL-SDR.COM V3" for the R820T and to the "Astrometa DVB-T/DVB-T2" for the R828D. The tuners FC0012/13 and E4000 have two outputs (I and Q), so that the ADC has twice the voltage compared to the R820T/R828D. To ensure that nothing is overdriven, the digital AGC of the RTL2832 must be switched on. Unfortunately, the control status of the digital AGC cannot be read out.
 That's why there is also a software AGC for the IF. However, in the event of adjacent channel interference, reception with hardware AGC is better.
 Summary of all advantages and disadvantages: 
 
 HW-AGC: 
-+ best reception (except for ADS-B) 
-+ fastest response to level changes 
-+ easy operation 
-- level display unusable 
+
+    + best reception (except for ADS-B) 
+    + fastest response to level changes 
+    + easy operation 
+    - level display unusable 
 
 manual gain setting: 
-+ accurate level display 
-- worse reception in the event of adjacent channel interference 
-- additional setting required 
+
+    + accurate level display 
+    - worse reception in the event of adjacent channel interference 
+    - additional setting required 
 
 SW-AGC: 
-+ accurate level display 
-+ easy operation 
-- worst reception in the event of adjacent channel interference 
-+ delayed response to level changes
+
+    + accurate level display 
+    + easy operation 
+    - worst reception in the event of adjacent channel interference 
+    + delayed response to level changes
 
 # FIR filter
 There are three FIR filters in the RTL2832. The first works with a clock frequency of 28.8 MHz and is freely programmable. The second FIR filter operates at four times the sample rate of the output. The bandwidth is fixed to a value that matches the output sampling rate. A sampling rate of 2048 kHz results in a bandwidth of approximately 1.9 MHz. A third FIR filter, which works at the output sampling rate, can also be switched on. It is also freely programmable.
@@ -102,10 +105,11 @@ offset = 0 if sdm = 0, offset = 0.25 if dithering is on, offset = 0.5 if ditheri
 # rtl_tcp.exe
 In "rtl_tcp" a second TCP/IP connection can be activated, one port number higher than the normal connection. Controlled by a timer, this second connection sends the contents of the tuner registers, an overload message and the overall gain of the tuner in 1/10 dB to the PC every 500 ms. The periodic query of the tuner registers is also used to optimize the image frequency attenuation on the R820T and R828D and to set the LNA gain on the FC0012/13.
 Additional command line parameters not included in the Osmocom version:
-   -c (correct I/Q ratio)
-   -k (calibrate image rejection for R820T/R828D and store the results in EEPROM)
-   -r (response port)
-   -u (upper sideband for R820T/R828D)
+
+    -c (correct I/Q ratio)
+    -k (calibrate image rejection for R820T/R828D and store the results in EEPROM)
+    -r (response port)
+    -u (upper sideband for R820T/R828D)
 Additional TCP/IP features not included in the Osmocom version:
 SET_TUNER_BANDWIDTH, SET_I2C_TUNER_REGISTER, SET_SIDEBAND, REPORT_I2C_REGS, SET_DITHERING, SET_FREQUENCY_CORRECTION_PPB.
 
