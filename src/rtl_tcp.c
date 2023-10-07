@@ -157,7 +157,7 @@ void usage(void)
 		"\t[-f frequency to tune to [Hz]]\n"
 		"\t[-g gain in dB (default: 0 for auto)]\n"
 		"\t    0 = hardware AGC, <0 = software AGC, >0 = gain in dB\n"
-		"\t[-k kalibrate image rejection for R820T/R828D and store the results in Eeprom\n"
+		"\t[-k calibrate image rejection for R820T/R828D and store the results in EEPROM\n"
 		"\t[-l length of single buffer in units of 512 samples (default: 256)]\n"
 		"\t[-n max number of linked list buffers to keep (default: 500)]\n"
 		"\t[-o set offset tuning\n"
