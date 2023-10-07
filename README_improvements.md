@@ -1,4 +1,4 @@
-# Improvements compared to the Osmocom version on git://git.osmocom.org/rtl-sdr.git
+# Improvements, compared to the Osmocom version on git://git.osmocom.org/rtl-sdr.git
 
 # Introduction
 After buying my first USB stick in 2020 with tuner FC0012, I found that DAB (Digital Audio Broadcast) and FM reception was much better with software that used the original Realtek driver than with software that used the Osmocom driver. There were also a lot of dropouts under Windows with DAB. It quickly became apparent that the gain setting of the tuner in the Osmocom software was inadequate. I wanted to improve it. I started with Hayati's version, which had some advantages over Osmocom: https://github.com/hayguen/librtlsdr/tree/development . The source code of the Linux kernel has revealed many insights. Bernhard (DB9PP) was very helpful in investigating the tuners and he carried out most of the measurements. When it comes to tools, I focused on rtl_tcp.exe, which has been optimized specifically for QIRX but is still backwards compatible with the Osmocom version.
