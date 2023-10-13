@@ -606,10 +606,6 @@ static void *receive(void *arg)
 			printf("%sable dithering\n", param ? "en" : "dis");
 			rtlsdr_set_dithering(dev, param);
 			break;
-		case SET_FREQUENCY_CORRECTION_001_PPM://0x4a
-			printf("set freq correction to %0.2f ppm\n", (int)param/100.0);
-			rtlsdr_set_freq_correction_100ppm(dev, (int)param);
-			break;
 		case CMD_SET_LNA_STATE://0x4b
 			printf("set lna state %u\n", param);
 			lna_state = param;

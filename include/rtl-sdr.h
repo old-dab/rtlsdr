@@ -174,15 +174,6 @@ RTLSDR_API int rtlsdr_set_freq_correction(rtlsdr_dev_t *dev, int ppm);
  * Set the frequency correction value for the device.
  *
  * \param dev the device handle given by rtlsdr_open()
- * \param ppm correction value in parts per 100 million (ppm)
- * \return 0 on success
- */
-RTLSDR_API int rtlsdr_set_freq_correction_100ppm(rtlsdr_dev_t *dev, int ppm);
-
-/*!
- * Set the frequency correction value for the device.
- *
- * \param dev the device handle given by rtlsdr_open()
  * \param ppb correction value in parts per billion (ppb)
  * \return 0 on success
  */
@@ -195,14 +186,6 @@ RTLSDR_API int rtlsdr_set_freq_correction_ppb(rtlsdr_dev_t *dev, int ppb);
  * \return correction value in parts per million (ppm)
  */
 RTLSDR_API int rtlsdr_get_freq_correction(rtlsdr_dev_t *dev);
-
-/*!
- * Get actual frequency correction value of the device.
- *
- * \param dev the device handle given by rtlsdr_open()
- * \return correction value in parts per 100 million (ppm)
- */
-RTLSDR_API int rtlsdr_get_freq_correction_100ppm(rtlsdr_dev_t *dev);
 
 /*!
  * Get actual frequency correction value of the device.

@@ -1357,7 +1357,7 @@ int rtlsdr_set_freq_correction_ppb(rtlsdr_dev_t *dev, int ppb)
 		return -1;
 
 	if (dev->corr == ppb)
-		return -2;
+		return 0;
 
 	dev->corr = ppb;
 
@@ -1374,11 +1374,6 @@ int rtlsdr_set_freq_correction_ppb(rtlsdr_dev_t *dev, int ppb)
 	return r;
 }
 
-int rtlsdr_set_freq_correction_100ppm(rtlsdr_dev_t *dev, int ppm)
-{
-	return rtlsdr_set_freq_correction_ppb(dev, ppm * 10);
-}
-
 int rtlsdr_set_freq_correction(rtlsdr_dev_t *dev, int ppm)
 {
 	return rtlsdr_set_freq_correction_ppb(dev, ppm * 1000);
@@ -1390,14 +1385,6 @@ int rtlsdr_get_freq_correction(rtlsdr_dev_t *dev)
 		return 0;
 
 	return dev->corr / 1000;
-}
-
-int rtlsdr_get_freq_correction_100ppm(rtlsdr_dev_t *dev)
-{
-	if (!dev)
-		return 0;
-
-	return dev->corr / 10;
 }
 
 int rtlsdr_get_freq_correction_ppb(rtlsdr_dev_t *dev)
