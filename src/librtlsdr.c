@@ -2690,6 +2690,7 @@ static void LIBUSB_CALL _libusb_callback(struct libusb_transfer *xfer)
 		{
 			softagc(dev, xfer->buffer, xfer->actual_length);
 			dev->cb(xfer->buffer, xfer->actual_length, dev->cb_ctx);
+        }
 		libusb_submit_transfer(xfer); /* resubmit transfer */
 		dev->xfer_errors = 0;
 	} else if (LIBUSB_TRANSFER_CANCELLED != xfer->status) {
@@ -3315,3 +3316,4 @@ static void softagc(rtlsdr_dev_t *dev, unsigned char *buf, int len)
 	}
 	return;
 }
+

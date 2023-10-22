@@ -38,6 +38,9 @@
 #include <sys/time.h>
 #include <netinet/in.h>
 #include <fcntl.h>
+#ifndef CLK_TCK
+#define	CLK_TCK	sysconf(_SC_CLK_TCK)	/* clock ticks per second */
+#endif
 #else
 #include <winsock2.h>
 #include "getopt/getopt.h"
