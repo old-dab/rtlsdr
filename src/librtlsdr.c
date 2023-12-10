@@ -2113,10 +2113,32 @@ int rtlsdr_get_device_usb_strings(uint32_t index, char *manufact,
 }
 #endif
 
+int rtlsdr_get_index_by_serial(const char *serial)
+{
+	int i, cnt, r;
+	char str[256];
+
+	if (!serial)
+		return -1;
+
+	cnt = rtlsdr_get_device_count();
+
+	if (!cnt)
+		return -2;
+
+	for (i = 0; i < cnt; i++) {
+		r = rtlsdr_get_device_usb_strings(i, NULL, NULL, str);
+		if (!r && !strcmp(serial, str))
+			return i;
+	}
+
+	return -3;
+}
+
 /* Returns true if the manufact_check and product_check strings match what is in the dongles EEPROM */
 int rtlsdr_check_dongle_model(void *dev, char *manufact_check, char *product_check)
 {
-	if ((strcmp(((rtlsdr_dev_t *)dev)->manufact, manufact_check) == 0&& strcmp(((rtlsdr_dev_t *)dev)->product, product_check) == 0))
+	if (strcmp(((rtlsdr_dev_t *)dev)->manufact, manufact_check) == 0 && strcmp(((rtlsdr_dev_t *)dev)->product, product_check) == 0)
 		return 1;
 
 	return 0;
