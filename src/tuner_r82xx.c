@@ -1186,7 +1186,7 @@ int r82xx_set_freq(struct r82xx_priv *priv, uint32_t freq)
 
 	/* if it's an RTL-SDR Blog V4, automatically upconvert by 28.8 MHz if we tune to HF
 	 * so that we don't need to manually set any upconvert offset in the SDR software */
-	upconvert_freq = is_rtlsdr_blog_v4 ? ((freq <= MHZ(27)) ? (freq + MHZ(28.8)) : freq) : freq;
+	upconvert_freq = is_rtlsdr_blog_v4 ? ((freq <= MHZ(27)) ? (freq + priv->cfg->xtal) : freq) : freq;
 
 	priv->freq = upconvert_freq / 1000000;
 	rc = r82xx_set_mux(priv, upconvert_freq);
