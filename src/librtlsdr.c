@@ -882,11 +882,11 @@ int rtlsdr_demod_write_reg(rtlsdr_dev_t *dev, uint8_t page, uint16_t addr, uint1
 		data[1] = val & 0xff;
 	}
 
+	rtlsdr_demod_read_reg(dev, DUMMY_PAGE, DUMMY_ADDR, 1);
+
 	r = rtlsdr_write_array(dev, page, addr, data, len);
 	if (r != len)
 		printf("%s failed with %d\n", __FUNCTION__, r);
-
-	rtlsdr_demod_read_reg(dev, DUMMY_PAGE, DUMMY_ADDR, 1);
 
 	return (r == len) ? 0 : -1;
 }
