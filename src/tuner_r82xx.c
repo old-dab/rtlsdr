@@ -1623,6 +1623,7 @@ int r82xx_init(struct r82xx_priv *priv)
 	// read calibration results from offset 0x80 in eeprom
 	if(rtlsdr_read_eeprom(priv->rtl_dev, buf, offset, 15) == 15)
 	{
+		checksum = 0;
 		for(i=1; i<14; i++)
 			checksum += buf[i];
 		if((buf[0] == 14) && ((checksum & 0xff) == buf[14])) // checksum ok
