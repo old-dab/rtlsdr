@@ -46,6 +46,8 @@ typedef struct rtlsdr_config {
 	int have_serial;
 	int enable_ir;
 	int remote_wakeup;
+	int cal;
+	char cal_values[13];
 } rtlsdr_config_t;
 
 void dump_config(rtlsdr_config_t *conf)
@@ -62,6 +64,13 @@ void dump_config(rtlsdr_config_t *conf)
 	printf(conf->enable_ir ? "yes\n": "no\n");
 	printf("Remote wakeup enabled:\t");
 	printf(conf->remote_wakeup ? "yes\n": "no\n");
+	if(conf->cal)
+	{
+		printf("Image rejection values:\t");
+		for(int i = 0; i < 13; i++)
+			printf("%02X ", conf->cal_values[i]);
+		printf("\n");
+	}
 	printf("__________________________________________\n");
 }
 
@@ -140,7 +149,7 @@ int set_string_descriptor(int pos, uint8_t *data, char *str)
 
 int parse_eeprom_to_conf(rtlsdr_config_t *conf, uint8_t *dat)
 {
-	int pos;
+	int pos, i, checksum;
 
 	if ((dat[0] != 0x28) || (dat[1] != 0x32))
 		printf( "Error: invalid RTL2832 EEPROM header!\n");
@@ -150,6 +159,17 @@ int parse_eeprom_to_conf(rtlsdr_config_t *conf, uint8_t *dat)
 	conf->have_serial = (dat[6] == 0xa5) ? 1 : 0;
 	conf->remote_wakeup = (dat[7] & 0x01) ? 1 : 0;
 	conf->enable_ir = (dat[7] & 0x02) ? 1 : 0;
+
+	conf->cal = 0;
+ 	pos = 0x80;
+	checksum = 0;
+	for(i = 1; i < 14; i++)
+		checksum += dat[pos+i];
+	if((dat[pos] == 14) && ((checksum & 0xff) == dat[pos+14])) // checksum ok
+	{
+		memcpy(conf->cal_values, dat+pos+1, 13);
+		conf->cal = 1;
+	}
 
 	pos = get_string_descriptor(STR_OFFSET, dat, conf->manufacturer);
 	pos = get_string_descriptor(pos, dat, conf->product);
