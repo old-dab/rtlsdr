@@ -1061,6 +1061,7 @@ static int r82xx_get_signal_strength(struct r82xx_priv *priv, unsigned char* dat
 	unsigned int lna_index, lna_gain;
 	int	slave_demod;
 	int if_gain = 0;
+	int filter_gain = 0;
 	uint8_t mixer_gain = (data[3] >> 4) & 0x0f;
 
 	/* set IMR_G */
@@ -1110,9 +1111,17 @@ static int r82xx_get_signal_strength(struct r82xx_priv *priv, unsigned char* dat
 	else
 		lna_gain = 0;
 
-	/* Sum_of_all_gains = if_gain + lna_gain + mixer_gain + absolute gain*/
+	if(data[6] & 0x20) //filter gain is set
+	{
+		if(data[0x0b] & 0x80) //small bandwidth is set
+			filter_gain = 80;
+		else
+			filter_gain = 40;
+	}
+
+	/* Sum_of_all_gains = if_gain + lna_gain + mixer_gain + filter_gain + absolute gain */
 	//printf("if_gain=%d, lna_gain=%d, mixer_gain=%d, abs_gain=%d\n", if_gain, lna_gain, r82xx_mixer_gains[mixer_gain], priv->abs_gain);
-	return if_gain + lna_gain + r82xx_mixer_gains[mixer_gain] - priv->abs_gain;
+	return if_gain + lna_gain + r82xx_mixer_gains[mixer_gain] + filter_gain - priv->abs_gain;
 
 }
 
