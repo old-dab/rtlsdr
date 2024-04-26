@@ -13,7 +13,7 @@ The main improvements are:
 The Osmocom version uses LibUSB for all operating systems. This works very well on Linux. However, blocks of data are lost on slow PCs under Windows. This means that uninterrupted operation of DAB, for example, is not possible. The reason is that the LibUSB uses the WinUSB under Windows. To achieve maximum data throughput, the "RAW_IO" parameter should be set in WinUSB. Only then will the winusb.sys driver be able to buffer more than one USB bulk transfer. However, this is not yet possible with LibUSB. To solve the problem, one can either use a patched version of LibUSB that sets "RAW_IO" or omit the LibUSB altogether. I decided to leave it out. In librtlsdr.c, the WinUSB functions are called directly under Windows.
 
 # fprintf
-In librtlsdr.c, texts are output with fprintf to "stderr", whereas in rtl_tcp.c they are usually output with printf to "stdout". As a result, the different texts can overwrite each other under Windows and occasionally a jumble of characters appears. Therefore, I output all text messages uniformly using printf.
+In librtlsdr.c, texts are output with fprintf to "stderr", whereas in rtl_tcp.c they are usually output with printf to "stdout". As a result, the different texts can overwrite each other under Windows and occasionally a jumble of characters appears. Therefore, I output all text messages uniformly to stderr.
 
 # Gain and AGC
 For all tuners, the LNA gain is controlled by an internal AGC.

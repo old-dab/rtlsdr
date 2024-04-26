@@ -115,7 +115,7 @@ void *ctrl_thread_fn(void *arg)
 #endif
 
 	while (1) {
-		printf("listening on control port %d...\n", port);
+		fprintf(stderr, "listening on control port %d...\n", port);
 		retval = listen(listensocket, 1);
 		if (retval == SOCKET_ERROR)
 			goto close;
@@ -138,14 +138,14 @@ void *ctrl_thread_fn(void *arg)
 			tuner_gain = (tuner_gain + 5) / 10;
 			if(old_gain != tuner_gain)
 			{
-				printf("gain = %2d dB\r", tuner_gain);
+				fprintf(stderr, "gain = %2d dB\r", tuner_gain);
 				old_gain = tuner_gain;
 			}
 		}
 
 		setsockopt(controlSocket, SOL_SOCKET, SO_LINGER, (char *)&ling, sizeof(ling));
 
-		printf("Control client accepted!\n");
+		fprintf(stderr, "Control client accepted!\n");
 		//usleep(500000);
 
 		while (1) {
@@ -226,7 +226,7 @@ close:
 		if (*do_exit)
 		{
 			closesocket(listensocket);
-			printf("Control Thread terminates\n");
+			fprintf(stderr, "Control Thread terminates\n");
 			break;
 		}
 	}

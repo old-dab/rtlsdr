@@ -156,13 +156,12 @@ int sendBuffer(SOCKET socket, const char *txbuf, int len, volatile int *do_exit)
 int selectDevice(uint32_t crc)
 {
 	int i;
-	//printf("numDevices = %d\n",numDevices);
 	for (i = 0; i < numDevices; i++)
 	{
 		// Pick first if crc == 0
 		if (crc == serialCRCs[i] || crc== 0 )
 		{
-			printf("Device %d with CRC %x selected.\n", i, crc);
+			fprintf(stderr, "Device %d with CRC %x selected.\n", i, crc);
 			// Select chosen device
 			break;
 		}
@@ -177,12 +176,12 @@ int	open_device(int dev_index)
 	rtlsdr_open(&dev, (uint32_t)dev_index);
 	if (NULL == dev)
 	{
-		printf("Failed to open rtlsdr device #%d.\n", dev_index);
+		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
 
 	if(iq.correct_iq == 1)
-		printf("Correct I/Q balance\n");
+		fprintf(stderr, "Correct I/Q balance\n");
 	/* Set the tuner error */
 	verbose_ppm_set(dev, ppm_error);
 
@@ -195,9 +194,9 @@ int	open_device(int dev_index)
 	/* Set the frequency */
 	r = rtlsdr_set_center_freq(dev, frequency);
 	if (r < 0)
-		printf("WARNING: Failed to set center freq.\n");
+		fprintf(stderr, "WARNING: Failed to set center freq.\n");
 	else
-		printf("Tuned to %i Hz.\n", frequency);
+		fprintf(stderr, "Tuned to %i Hz.\n", frequency);
 
 	if (gain == 0)
 	{
@@ -205,10 +204,10 @@ int	open_device(int dev_index)
 		gain_mode = 0;
 		verbose_auto_gain(dev);
 		rtlsdr_set_agc_mode(dev, 1);
-		printf("Set agc mode 1\n");
+		fprintf(stderr, "Set agc mode 1\n");
 	}
 	else if(gain < 0) {
-		printf("Set software AGC\n");
+		fprintf(stderr, "Set software AGC\n");
 		gain_mode = 2;
 		rtlsdr_set_tuner_gain_mode(dev, 2);
 	} else {
@@ -221,17 +220,17 @@ int	open_device(int dev_index)
 	if(sideband)
 	{
 		rtlsdr_set_tuner_sideband(dev, sideband);
-		printf("Set to upper sideband\n");
+		fprintf(stderr, "Set to upper sideband\n");
 	}
 	verbose_set_bandwidth(dev, bandwidth);
 	if(offset_tuning)
 	{
-		printf("set offset tuning\n");
+		fprintf(stderr, "set offset tuning\n");
 		rtlsdr_set_offset_tuning(dev, 1);
 	}
 	rtlsdr_set_bias_tee(dev, enable_biastee);
 	if (enable_biastee)
-		printf("activated bias-T on GPIO PIN 0\n");
+		fprintf(stderr, "activated bias-T on GPIO PIN 0\n");
 
 	/* Reset endpoint before we start reading from it (mandatory) */
 	verbose_reset_buffer(dev);
@@ -257,7 +256,7 @@ static void show_adc_level(uint8_t *buf, int len, struct iq_state *iq)
 		dbi = 20 * log10(U);
 		if(dbi >= iq->dbi+0.01f || dbi <= iq->dbi-0.01f)
 		{
-			printf("U = %.1f mV = %.2f dBmV", U, dbi);
+			fprintf(stderr, "U = %.1f mV = %.2f dBmV", U, dbi);
 			iq->dbi = dbi;
 		}
 		iq->plot_count = 0;
@@ -267,14 +266,14 @@ static void show_adc_level(uint8_t *buf, int len, struct iq_state *iq)
 
 void usage(void)
 {
-	printf("rtl2_tcp, an I/Q spectrum server for RTL2832 based DVB-T receivers\n"
+	fprintf(stderr, "rtl2_tcp, an I/Q spectrum server for RTL2832 based DVB-T receivers\n"
 		   "Version %d.%d.%d.%d for QIRX, %s\n",
 		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
-	printf("rtlsdr library %d.%d.%d.%d %s\n\n",
+	fprintf(stderr, "rtlsdr library %d.%d.%d.%d %s\n\n",
 		rtlsdr_get_version()>>24, rtlsdr_get_version()>>16 & 0xFF,
 		rtlsdr_get_version()>>8 & 0xFF, rtlsdr_get_version() & 0xFF,
 		rtlsdr_get_ver_id() );
-	printf("Usage:\t[-a listen address]\n"
+	fprintf(stderr, "Usage:\t[-a listen address]\n"
 		"\t[-b number of buffers (default: 15, set by library)]\n"
 		"\t[-c correct I/Q-Ratio\n"
 		"\t[-f frequency to tune to [Hz]]\n"
@@ -296,7 +295,7 @@ void usage(void)
 		"\t[-I debug input from keyboard\n"
 #endif
 		"\t[-P ppm_error (default: 0)]\n"
-		"\t[-T enable bias-T on GPIO PIN 0 (works for rtl-sdr.com v3 dongles)]\n");
+		"\t[-T enable bias-T on GPIO PIN 0 (works for rtl-sdr.com v3/v4 dongles)]\n");
 	exit(1);
 }
 
@@ -305,7 +304,7 @@ BOOL WINAPI sighandler(int signum)
 {
 	if (CTRL_C_EVENT == signum)
 	{
-		printf("CTRL-C caught, exiting!\n");
+		fprintf(stderr, "CTRL-C caught, exiting!\n");
 		do_exit = 1;
 		ctrlC_exit = 1;
 		rtlsdr_cancel_async(dev);
@@ -313,7 +312,7 @@ BOOL WINAPI sighandler(int signum)
 	}
 	else if (CTRL_CLOSE_EVENT == signum)
 	{
-		printf("SIGQUIT caught, exiting!\n");
+		fprintf(stderr, "SIGQUIT caught, exiting!\n");
 		do_exit = 1;
 		rtlsdr_cancel_async(dev);
 		return TRUE;
@@ -323,7 +322,7 @@ BOOL WINAPI sighandler(int signum)
 #else
 static void sighandler(int signum)
 {
-	printf("Signal (%d) caught, ask for exit!\n", signum);
+	fprintf(stderr, "Signal (%d) caught, ask for exit!\n", signum);
 	rtlsdr_cancel_async(dev);
 	do_exit = 1;
 }
@@ -340,7 +339,7 @@ static void iqBalance(uint8_t *buf, int len, struct iq_state *iq)
         iq->levelQ += iq->ratio * (fabsf((float)buf[pos+1]-DC_OFFSET) - iq->levelQ);
 	}
 	iq_ratio = iq->levelI / iq->levelQ;
-	//printf("I = %f, Q = %f, I/Q = %f%%, len = %d\n", iq->levelI, iq->levelQ, iq_ratio, len);
+	//fprintf(stderr, "I = %f, Q = %f, I/Q = %f%%, len = %d\n", iq->levelI, iq->levelQ, iq_ratio, len);
 	if(iq_ratio > 1.01)
 	{
 	    for (pos = 0; pos < len; pos+=2)
@@ -419,9 +418,9 @@ static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 			if ( verbosity )
 			{
 				if (num_queued > global_numq)
-					printf("ll+, now %d\n", num_queued);
+					fprintf(stderr, "ll+, now %d\n", num_queued);
 				else if (num_queued < global_numq)
-					printf("ll-, now %d\n", num_queued);
+					fprintf(stderr, "ll-, now %d\n", num_queued);
 			}
 
 			global_numq = num_queued;
@@ -450,7 +449,7 @@ static void *sendStream(void *arg)
 		if(pthread_cond_timedwait(&cond, &ll_mutex, &ts) == ETIMEDOUT)
 		{
 			pthread_mutex_unlock(&ll_mutex);
-			printf("Tx thread timeout\n");
+			fprintf(stderr, "Tx thread timeout\n");
 			sighandler(CTRL_CLOSE_EVENT);
 			pthread_exit(NULL);
 		}
@@ -464,9 +463,9 @@ static void *sendStream(void *arg)
 			if (!sendBuffer(s, curelem->data, curelem->len, &do_exit))
 			{
 #ifdef _WIN32
-				printf("Tx thread terminated (%d), do_exit:%d\n", WSAGetLastError(), do_exit);
+				fprintf(stderr, "Tx thread terminated (%d), do_exit:%d\n", WSAGetLastError(), do_exit);
 #else
-				printf("Tx thread terminated, do_exit:%d\n", do_exit);
+				fprintf(stderr, "Tx thread terminated, do_exit:%d\n", do_exit);
 #endif
 				sighandler(CTRL_CLOSE_EVENT);
 				pthread_exit(NULL);
@@ -519,9 +518,9 @@ static void *receive(void *arg)
 			}
 			if(received == SOCKET_ERROR || do_exit) {
 #ifdef _WIN32
-				printf("Rx thread terminated (%d), do_exit:%d\n", WSAGetLastError(), do_exit);
+				fprintf(stderr, "Rx thread terminated (%d), do_exit:%d\n", WSAGetLastError(), do_exit);
 #else
-				printf("Rx thread terminated, do_exit:%d\n", do_exit);
+				fprintf(stderr, "Rx thread terminated, do_exit:%d\n", do_exit);
 #endif
 				sighandler(CTRL_CLOSE_EVENT);
 				pthread_exit(NULL);
@@ -531,104 +530,104 @@ static void *receive(void *arg)
 		param = ntohl(cmd.param);
 		switch(cmd.cmd) {
 		case SET_FREQUENCY://0x01
-			printf("set freq %u\n", param);
+			fprintf(stderr, "set freq %u\n", param);
 			rtlsdr_set_center_freq(dev, param);
 			break;
 		case SET_SAMPLE_RATE://0x02
-			printf("set sample rate %u\n", param);
+			fprintf(stderr, "set sample rate %u\n", param);
 			rtlsdr_set_sample_rate(dev, param);
 			break;
 		case SET_GAIN_MODE://0x03
-			printf("set gain mode %u\n", param);
+			fprintf(stderr, "set gain mode %u\n", param);
 			gain_mode = param;
 			rtlsdr_set_tuner_gain_mode(dev, param);
 			break;
 		case SET_GAIN://0x04
-			printf("set gain %u\n", param);
+			fprintf(stderr, "set gain %u\n", param);
 			if(gain_mode == 1)
 				rtlsdr_set_tuner_gain(dev, param);
 			break;
 		case SET_FREQUENCY_CORRECTION://0x05
-			printf("set freq correction to %d ppm\n", (int)param);
+			fprintf(stderr, "set freq correction to %d ppm\n", (int)param);
 			rtlsdr_set_freq_correction(dev, (int)param);
 			break;
 		case SET_IF_STAGE://0x06
-			printf("set if stage %d gain %d\n", param >> 16, (short)(param & 0xffff));
+			fprintf(stderr, "set if stage %d gain %d\n", param >> 16, (short)(param & 0xffff));
 			if(gain_mode == 1)
 				rtlsdr_set_tuner_if_gain(dev, param >> 16, (short)(param & 0xffff));
 			break;
 		case SET_TEST_MODE://0x07
-			printf("set test mode %u\n", param);
+			fprintf(stderr, "set test mode %u\n", param);
 			rtlsdr_set_testmode(dev, param);
 			break;
 		case SET_AGC_MODE://0x08
-			printf("set agc mode %u\n", param);
+			fprintf(stderr, "set agc mode %u\n", param);
 			rtlsdr_set_agc_mode(dev, param);
 			break;
 		case SET_DIRECT_SAMPLING://0x09
-			printf("set direct sampling %u\n", param);
+			fprintf(stderr, "set direct sampling %u\n", param);
 			rtlsdr_set_direct_sampling(dev, param);
 			break;
 		case SET_OFFSET_TUNING://0x0a
-			printf("set offset tuning %d\n", (int)param);
+			fprintf(stderr, "set offset tuning %d\n", (int)param);
 			rtlsdr_set_offset_tuning(dev, (int)param);
 			break;
 		case SET_RTL_CRYSTAL://0x0b
-			printf("set rtl xtal %u\n", param);
+			fprintf(stderr, "set rtl xtal %u\n", param);
 			rtlsdr_set_xtal_freq(dev, param, 0);
 			break;
 		case SET_TUNER_CRYSTAL://0x0c
-			printf("set tuner xtal %u\n", param);
+			fprintf(stderr, "set tuner xtal %u\n", param);
 			rtlsdr_set_xtal_freq(dev, 0, param);
 			break;
 		case SET_TUNER_GAIN_BY_INDEX://0x0d
-			printf("set tuner gain by index %u\n", param);
+			fprintf(stderr, "set tuner gain by index %u\n", param);
 			if(gain_mode == 1)
 				rtlsdr_set_tuner_gain_index(dev, param);
 			break;
 		case SET_BIAS_TEE://0x0e
-			printf("set bias tee %u\n", param);
+			fprintf(stderr, "set bias tee %u\n", param);
 			rtlsdr_set_bias_tee(dev, param);
 			break;
 		case SET_TUNER_BANDWIDTH://0x40
-			printf("set tuner bandwidth to %u Hz\n", param);
+			fprintf(stderr, "set tuner bandwidth to %u Hz\n", param);
 			verbose_set_bandwidth(dev, param);
 			break;
 		case SET_I2C_TUNER_REGISTER://0x43
-			printf("set i2c register x%03X to x%03X with mask x%02X\n", (param >> 20) & 0xfff, param & 0xfff, (param >> 12) & 0xff );
+			fprintf(stderr, "set i2c register x%03X to x%03X with mask x%02X\n", (param >> 20) & 0xfff, param & 0xfff, (param >> 12) & 0xff );
 			rtlsdr_set_tuner_i2c_register(dev, (param >> 20) & 0xfff, (param >> 12) & 0xff, param & 0xfff);
 			break;
 		case SET_SIDEBAND://0x46
-			printf("set to %s sideband\n", param ? "upper" : "lower");
+			fprintf(stderr, "set to %s sideband\n", param ? "upper" : "lower");
 			rtlsdr_set_tuner_sideband(dev, param);
 			break;
 		case REPORT_I2C_REGS://0x48
-			printf("read registers %d\n", param);
+			fprintf(stderr, "read registers %d\n", param);
 			break;
 		case SET_DITHERING://0x49
-			printf("%sable dithering\n", param ? "en" : "dis");
+			fprintf(stderr, "%sable dithering\n", param ? "en" : "dis");
 			rtlsdr_set_dithering(dev, param);
 			break;
 		case CMD_SET_LNA_STATE://0x4b
-			printf("set lna state %u\n", param);
+			fprintf(stderr, "set lna state %u\n", param);
 			lna_state = param;
 			//set_lna_state(dev, param);
 			break;
 		case CMD_SET_REQUEST_ALL_SERIALS://0x80
-			printf("request all serials\n");
+			fprintf(stderr, "request all serials\n");
 			CommState = ST_SERIALS_REQUESTED;
 			break;
 		case CMD_SET_SELECT_SERIAL: //0x81, select hardware, 1st command to receive
-			printf("select serial\n");
+			fprintf(stderr, "select serial\n");
 			open_device(selectDevice(param));
 			CommState = ST_DEVICE_CREATED;
 			break;
 		case SET_FREQUENCY_CORRECTION_PPB://0x83
-			printf("set freq correction to %0.3f ppm\n", (int)param/1000.0);
+			fprintf(stderr, "set freq correction to %0.3f ppm\n", (int)param/1000.0);
 			rtlsdr_set_freq_correction_ppb(dev, (int)param);
 			break;
 		default:
-			printf("unsupported cmd 0x%0x\n", cmd.cmd);
+			fprintf(stderr, "unsupported cmd 0x%0x\n", cmd.cmd);
 			break;
 		}
 		cmd.cmd = 0xff;
@@ -679,11 +678,11 @@ static void *kb_thread_fn(void *arg)
 					if(agc) agc = 0;
 					else agc = 1;
 					rtlsdr_set_agc_mode(dev, agc);
-					printf("set agc mode %u\n", agc);
+					fprintf(stderr, "set agc mode %u\n", agc);
 					break;
 				case 'r':
 					rtlsdr_reset_demod(dev);
-					printf("reset demod\n");
+					fprintf(stderr, "reset demod\n");
 					break;
 			}
 		else if((len == 6) && (keybuf[0] == 'w'))
@@ -694,7 +693,7 @@ static void *kb_thread_fn(void *arg)
 				page = (val >> 16) & 0xf;
 				adr = (val >> 8) & 0xff;
 				val = val & 0xff;
-				printf("Write Page=%d, Adress=%x, Value=%x\n", page, adr, val);
+				fprintf(stderr, "Write Page=%d, Adress=%x, Value=%x\n", page, adr, val);
 				rtlsdr_demod_write_reg(dev, page, adr, val, 1);
 			}
 		}
@@ -710,17 +709,17 @@ int device_search(void)
 	int device_count = rtlsdr_get_device_count();
 	if (!device_count)
 	{
-		printf("No supported devices found.\n");
+		fprintf(stderr, "No supported devices found.\n");
 		return 0;
 	}
-	printf("Found %d device(s):\n", device_count);
+	fprintf(stderr, "Found %d device(s):\n", device_count);
 	for (i = 0; i < device_count; i++)
 	{
 		if(rtlsdr_get_device_usb_strings(i, vendor, product, serial) < 0)
 			continue;
-		printf("  %d:  %s, %s, SN: %s\n", i, vendor, product, serial);
+		fprintf(stderr, "  %d:  %s, %s, SN: %s\n", i, vendor, product, serial);
 	}
-	printf("\n");
+	fprintf(stderr, "\n");
 	return device_count;
 }
 
@@ -763,7 +762,7 @@ int main(int argc, char **argv)
 	struct sigaction sigact, sigign;
 #endif
 
-	/*printf("rtl2_tcp, an I/Q spectrum server for RTL2832 based DVB-T receivers\n"
+	/*fprintf(stderr, "rtl2_tcp, an I/Q spectrum server for RTL2832 based DVB-T receivers\n"
 		   "Version %d.%d.%d.%d for QIRX, %s\n\n",
 		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);*/
 
@@ -849,7 +848,7 @@ int main(int argc, char **argv)
 		usage();
 
 	if (verbosity)
-		printf("verbosity set to %d\n", verbosity);
+		fprintf(stderr, "verbosity set to %d\n", verbosity);
 
 	if (!device_search())
 		exit(1);
@@ -870,7 +869,7 @@ int main(int argc, char **argv)
 	if (i != 0)
 	{
 		// Tell the user that we could not find a usable Winsock DLL.
-	    printf("WSAStartup failed with error: %d\n", i);
+	    fprintf(stderr, "WSAStartup failed with error: %d\n", i);
 	    return 1;
 	}
 	SetConsoleCtrlHandler( (PHANDLER_ROUTINE) sighandler, TRUE );
@@ -909,7 +908,7 @@ int main(int argc, char **argv)
 			pthread_create(&kb_thread, NULL, &kb_thread_fn, NULL);
 #endif
 		pthread_create(&ctrl_thread, NULL, &ctrl_thread_fn, &ctrldata);
-		printf("listening on port %d...\n", port);
+		fprintf(stderr, "listening on port %d...\n", port);
 		listen(listensocket,1);
 
 		while(1)
@@ -929,7 +928,7 @@ int main(int argc, char **argv)
 			}
 		}
 		setsockopt(s, SOL_SOCKET, SO_LINGER, (char *)&ling, sizeof(ling));
-		printf("client accepted!\n");
+		fprintf(stderr, "client accepted!\n");
 
 		memset(&dongle_info, 0, sizeof(dongle_info));
 		memcpy(dongle_info, "RTL0", 4);
@@ -938,7 +937,7 @@ int main(int argc, char **argv)
 		memcpy(dongle_info+15, "RTL0", 4);
 		r = send(s, (const char *)&dongle_info, sizeof(dongle_info), 0);
 		if (sizeof(dongle_info) != r)
-			printf("failed to send dongle information\n");
+			fprintf(stderr, "failed to send dongle information\n");
 
 		pthread_attr_init(&attr);
 		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
@@ -966,7 +965,7 @@ int main(int argc, char **argv)
 
 		closesocket(s);
 
-		printf("all threads dead..\n");
+		fprintf(stderr, "all threads dead..\n");
 		curelem = ll_buffers;
 		ll_buffers = 0;
 
@@ -989,6 +988,6 @@ out:
 #ifdef _WIN32
 	WSACleanup();
 #endif
-	printf("bye!\n");
+	fprintf(stderr, "bye!\n");
 	return r >= 0 ? r : -r;
 }

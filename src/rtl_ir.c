@@ -68,14 +68,14 @@ struct dongle_state dongle;
 
 void usage(void)
 {
-	printf("rtl_ir, display received IR signals\n"
+	fprintf(stderr, "rtl_ir, display received IR signals\n"
 		   "Version %d.%d.%d.%d, %s\n",
 		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
-	printf("rtlsdr library %d.%d.%d.%d %s\n\n",
+	fprintf(stderr, "rtlsdr library %d.%d.%d.%d %s\n\n",
 		rtlsdr_get_version()>>24, rtlsdr_get_version()>>16 & 0xFF,
 		rtlsdr_get_version()>>8 & 0xFF, rtlsdr_get_version() & 0xFF,
 		rtlsdr_get_ver_id() );
-	printf("Use:\trtl_ir [-options]\n"
+	fprintf(stderr, "Use:\trtl_ir [-options]\n"
 		"\t[-d device_index (default: 0)]\n"
 		"\t[-w wait_usec]\tDelay to wait before each iteration (10000)\n"
 		"\t[-c max_count]\tMaximum number of loop iterations (0)\n"
@@ -92,7 +92,7 @@ BOOL WINAPI
 sighandler(int signum)
 {
 	if (CTRL_C_EVENT == signum) {
-		printf( "Signal caught, exiting!\n");
+		fprintf(stderr, "Signal caught, exiting!\n");
 		do_exit = 1;
 		rtlsdr_cancel_async(dongle.dev);
 		return TRUE;
@@ -102,7 +102,7 @@ sighandler(int signum)
 #else
 static void sighandler(int signum)
 {
-	printf( "Signal caught, exiting!\n");
+	fprintf(stderr, "Signal caught, exiting!\n");
 	do_exit = 1;
 	rtlsdr_cancel_async(dongle.dev);
 }
@@ -155,7 +155,7 @@ int main(int argc, char **argv) {
 
 	r = rtlsdr_open(&dongle.dev, (uint32_t)dongle.dev_index);
 	if (r < 0) {
-		printf( "Failed to open rtlsdr device #%d.\n", dongle.dev_index);
+		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dongle.dev_index);
 		exit(1);
 	}
 #ifndef _WIN32
@@ -180,7 +180,7 @@ int main(int argc, char **argv) {
 
 		r = rtlsdr_ir_query(dongle.dev, buf, sizeof(buf));
 		if (r < 0) {
-			printf( "rtlsdr_ir_query failed: %d\n", r);
+			fprintf(stderr, "rtlsdr_ir_query failed: %d\n", r);
 		}
 
 		for (i = 0; i < r; i++) {
@@ -188,12 +188,12 @@ int main(int argc, char **argv) {
 			int duration = buf[i] & 0x7f;
 
 			if (output_text) {
-				printf("pulse %d, duration %d usec\n", pulse, duration * 20);
+				fprintf(stderr, "pulse %d, duration %d usec\n", pulse, duration * 20);
 			}
 
 			if (output_binary) {
 				for (j = 0; j < duration; ++j) {
-					printf("%d", pulse);
+					fprintf(stderr, "%d", pulse);
 				}
 			}
 
@@ -201,16 +201,16 @@ int main(int argc, char **argv) {
 				putchar(buf[i]);
 			}
 		}
-		if (r != 0) printf("\n");
+		if (r != 0) fprintf(stderr, "\n");
 		fflush(stdout);
 
 		if (max_count != 0 && ++iteration_count >= max_count) do_exit = 1;
 	}
 
 	if (do_exit) {
-		printf( "\nUser cancel, exiting...\n");}
+		fprintf(stderr, "\nUser cancel, exiting...\n");}
 	else {
-		printf( "\nLibrary error %d, exiting...\n", r);}
+		fprintf(stderr, "\nLibrary error %d, exiting...\n", r);}
 
 	rtlsdr_cancel_async(dongle.dev);
 

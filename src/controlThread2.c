@@ -73,6 +73,14 @@ enum eIndications
 	, IND_OVERLOAD_B		= 0x87            // 1 byte
 	, IND_DEVICE_RELEASED	= 0x88            // 1 byte bool
 	, IND_RSPDUO_HiZ    	= 0x89            // 1 byte bool
+	, IND_BIAST_STATE       = 0x8A			  // 0: off, 1: on
+	, IND_RF_CHANGED        = 0x8B			  // 4 Byte current frequency
+	, IND_AM_NOTCH          = 0x8C			  // 1 byte ->0: off, 1: on
+	, IND_DAB_NOTCH         = 0x8D			  // 1 byte ->0: off, 1: on
+	, IND_RF_NOTCH          = 0x8E			  // 1 byte ->0: off, 1: on
+	, IND_ANTENNA_SELECTED  = 0x8F			  // 1 byte -> 5,6: RSPII or RSPduo TunerSelect
+											  //           0,1,2: RSPdx A, B, C
+											  // 7 && 0-60MHz : HiZ
 };
 
 #define MAX_I2C_REGISTERS  256
@@ -180,7 +188,7 @@ int prepareSerialsList(uint8_t* buf)
 	char SerNo[SERLEN];
 
 	createCrcTable(0xedb88320);
-	printf("Preparing device serials list.\n");
+	fprintf(stderr, "Preparing device serials list.\n");
 	numDevices = rtlsdr_get_device_count();
 	for (int i = 0; i < numDevices; i++)
 	{
@@ -196,7 +204,6 @@ int prepareSerialsList(uint8_t* buf)
 			strcat(SerNo, " SN: ");
 			strcat(SerNo, serial);
 		}
-		//printf( "  %d:  %s, %s, SN: %s\n", i, vendor, product, serial);
 		for (int k = 0; k < SERLEN; k++)
 			*p++ = SerNo[k];
 		*p++ = ',';
@@ -248,7 +255,7 @@ void *ctrl_thread_fn(void *arg)
 	r = fcntl(listensocket, F_SETFL, r | O_NONBLOCK);
 #endif
 
-	printf("listening on port %d...\n", data->port);
+	fprintf(stderr, "listening on port %d...\n", data->port);
 	retval = listen(listensocket, 1);
 	if (retval == SOCKET_ERROR)
 		goto close;
@@ -271,7 +278,7 @@ void *ctrl_thread_fn(void *arg)
 	}
 
 	setsockopt(controlSocket, SOL_SOCKET, SO_LINGER, (char *)&ling, sizeof(ling));
-	printf("control client accepted!\n");
+	fprintf(stderr, "control client accepted!\n");
 
 	while (1)
 	{
@@ -287,24 +294,20 @@ void *ctrl_thread_fn(void *arg)
 		switch (CommState)
 		{
 		case ST_IDLE:
-			//printf("ST_IDLE\n");
 			goto sleep;
 
 		case ST_DEVICE_RELEASED:
-			//printf("ST_DEVICE_RELEASED\n");
 			len = prepareIntCommand(txbuf, len, IND_DEVICE_RELEASED, 1, 1);
 			CommState = ST_IDLE; // wait for socket to close
 			break;
 
 		case ST_SERIALS_REQUESTED: // 1st command
-			//printf("ST_SERIALS_REQUESTED\n");
 			buflen = prepareSerialsList(tmp);
 			len = prepareStringCommand(txbuf, len, IND_SERIAL, tmp, buflen);
 			CommState = ST_IDLE; // wait for the next command changing the state
 			break;
 
 		case ST_DEVICE_CREATED:
-			//printf("ST_DEVICE_CREATED\n");
 			len = prepareStringCommand(txbuf, len, IND_MAGIC_STRING, (uint8_t*)"RTL0", 4);
 			len = prepareStringCommand(txbuf, len, IND_RX_STRING,    (uint8_t*)"RTL0", 4);
 			len = prepareIntCommand(txbuf, len, IND_RX_TYPE, 5, 1);
@@ -316,20 +319,18 @@ void *ctrl_thread_fn(void *arg)
 			tuner_gain_count = rtlsdr_get_tuner_gains(dev, NULL);
 			if (tuner_gain_count >= 0)
 				len = prepareIntCommand(txbuf, len, IND_GAIN_COUNT, tuner_gain_count, 1);
-			printf("tuner_gain_count = %d\n", tuner_gain_count);
+			fprintf(stderr, "tuner_gain_count = %d\n", tuner_gain_count);
 			pthread_mutex_lock(&mut);
 			CommState = ST_WELCOME_SENT;
 			pthread_cond_signal(&cond);
 			pthread_mutex_unlock(&mut);
 			//fall through
 		case ST_WELCOME_SENT:
-			//printf("ST_WELCOME_SENT\n");
 			if(rtlsdr_get_tuner_i2c_register(dev, reg_values, &reglen, &tuner_gain) == 0)
 			{
 #ifdef DEBUG
 				if(old_gain != tuner_gain)
 				{
-					//printf("gain = %2.1f dB\n", tuner_gain/10.0);
 					old_gain = tuner_gain;
 				}
 #endif
@@ -360,6 +361,6 @@ close:
 	if (haveControlSocket)
 		closesocket(controlSocket);
 	closesocket(listensocket);
-	printf("Control thread terminated\n");
+	fprintf(stderr, "Control thread terminated\n");
 	return 0;
 }

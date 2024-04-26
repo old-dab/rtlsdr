@@ -80,14 +80,14 @@ static unsigned int ppm_duration = PPM_DURATION;
 
 void usage(void)
 {
-	printf("rtl_test, a benchmark tool for RTL2832 based DVB-T receivers\n"
+	fprintf(stderr, "rtl_test, a benchmark tool for RTL2832 based DVB-T receivers\n"
 		   "Version %d.%d.%d.%d, %s\n",
 		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
-	printf("rtlsdr library %d.%d.%d.%d %s\n\n",
+	fprintf(stderr, "rtlsdr library %d.%d.%d.%d %s\n\n",
 		rtlsdr_get_version()>>24, rtlsdr_get_version()>>16 & 0xFF,
 		rtlsdr_get_version()>>8 & 0xFF, rtlsdr_get_version() & 0xFF,
 		rtlsdr_get_ver_id() );
-	printf("Usage:\t[-b number of buffers (default: 15, set by library)]\n"
+	fprintf(stderr, "Usage:\t[-b number of buffers (default: 15, set by library)]\n"
 		"\t[-d device_index or serial (default: 0)]\n"
 		"\t[-l length of single buffer in units of 512 samples (default: 64)]\n"
 		"\t[-s samplerate (default: 2048000 Hz)]\n"
@@ -102,7 +102,7 @@ BOOL WINAPI
 sighandler(int signum)
 {
 	if (CTRL_C_EVENT == signum) {
-		printf( "Signal caught, exiting!\n");
+		fprintf(stderr, "Signal caught, exiting!\n");
 		do_exit = 1;
 		rtlsdr_cancel_async(dev);
 		return TRUE;
@@ -112,7 +112,7 @@ sighandler(int signum)
 #else
 static void sighandler(int signum)
 {
-	printf( "Signal caught, exiting!\n");
+	fprintf(stderr, "Signal caught, exiting!\n");
 	do_exit = 1;
 	rtlsdr_cancel_async(dev);
 }
@@ -146,7 +146,7 @@ static void underrun_test(unsigned char *buf, uint32_t len, int mute)
 	if (mute)
 		return;
 	if (lost)
-		printf("lost at least %d of %d bytes\n", lost, len);
+		fprintf(stderr, "lost at least %d of %d bytes\n", lost, len);
 
 }
 
@@ -240,7 +240,7 @@ static void ppm_test(uint32_t len)
 	interval += (int64_t)(ppm_now.tv_nsec - ppm_recent.tv_nsec);
 	nsamples_total += nsamples;
 	interval_total += interval;
-	printf("real sample rate: %i current PPM: %i cumulative PPM: %i\n",
+	fprintf(stderr, "real sample rate: %i current PPM: %i cumulative PPM: %i\n",
 		(int)((1000000000UL * nsamples) / interval),
 		ppm_report(nsamples, interval),
 		ppm_report(nsamples_total, interval_total));
@@ -261,7 +261,7 @@ void e4k_benchmark(void)
 	uint32_t freq, gap_start = 0, gap_end = 0;
 	uint32_t range_start = 0, range_end = 0;
 
-	printf("Benchmarking E4000 PLL...\n");
+	fprintf(stderr, "Benchmarking E4000 PLL...\n");
 
 	/* find tuner range start */
 	for (freq = MHZ(70); freq > MHZ(1); freq -= MHZ(1)) {
@@ -295,10 +295,10 @@ void e4k_benchmark(void)
 		}
 	}
 
-	printf("E4K range: %i to %i MHz\n",
+	fprintf(stderr, "E4K range: %i to %i MHz\n",
 		range_start/MHZ(1) + 1, range_end/MHZ(1) - 1);
 
-	printf("E4K L-band gap: %i to %i MHz\n",
+	fprintf(stderr, "E4K L-band gap: %i to %i MHz\n",
 		gap_start/MHZ(1), gap_end/MHZ(1));
 }
 
@@ -307,7 +307,7 @@ void r82xx_benchmark(void)
 	uint32_t freq;
 	uint32_t range_start = 0, range_end = 0;
 
-	printf("Benchmarking R82xx PLL...\n");
+	fprintf(stderr, "Benchmarking R82xx PLL...\n");
 
 	/* find tuner range start */
 	for (freq = MHZ(70); freq > MHZ(1); freq -= MHZ(1)) {
@@ -325,7 +325,7 @@ void r82xx_benchmark(void)
 		}
 	}
 
-	printf("R8XX range: %i to %i MHz\n",
+	fprintf(stderr, "R8XX range: %i to %i MHz\n",
 		range_start/MHZ(1) + 1, range_end/MHZ(1) - 1);
 
 }
@@ -391,7 +391,7 @@ int main(int argc, char **argv)
 
 	r = rtlsdr_open(&dev, (uint32_t)dev_index);
 	if (r < 0) {
-		printf( "Failed to open rtlsdr device #%d.\n", dev_index);
+		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
 
@@ -407,12 +407,12 @@ int main(int argc, char **argv)
 	SetConsoleCtrlHandler( (PHANDLER_ROUTINE) sighandler, TRUE );
 #endif
 	count = rtlsdr_get_tuner_gains(dev, NULL);
-	printf("Supported gain values (%d): ", count);
+	fprintf(stderr, "Supported gain values (%d): ", count);
 
 	count = rtlsdr_get_tuner_gains(dev, gains);
 	for (i = 0; i < count; i++)
-		printf("%.1f ", gains[i] / 10.0);
-	printf("\n");
+		fprintf(stderr, "%.1f ", gains[i] / 10.0);
+	fprintf(stderr, "\n");
 
 	/* Set the sample rate */
 	verbose_set_sample_rate(dev, samp_rate);
@@ -428,7 +428,7 @@ int main(int argc, char **argv)
 			r82xx_benchmark();
 			break;
 		default:
-			printf( "No supported tuner found\n");
+			fprintf(stderr, "No supported tuner found\n");
 		}
 		goto exit;
 	}
@@ -437,12 +437,12 @@ int main(int argc, char **argv)
 	r = rtlsdr_set_testmode(dev, 1);
 
 	if ((test_mode == PPM_BENCHMARK) && !sync_mode) {
-		printf("Reporting PPM error measurement every %u seconds...\n", ppm_duration);
-		printf("Press ^C after a few minutes.\n");
+		fprintf(stderr, "Reporting PPM error measurement every %u seconds...\n", ppm_duration);
+		fprintf(stderr, "Press ^C after a few minutes.\n");
 	}
 
 	if (test_mode == NO_BENCHMARK) {
-		printf("\nInfo: This tool will continuously"
+		fprintf(stderr, "\nInfo: This tool will continuously"
 				" read from the device, and report if\n"
 				"samples get lost. If you observe no "
 				"further output, everything is fine.\n\n");
@@ -452,32 +452,32 @@ int main(int argc, char **argv)
 	verbose_reset_buffer(dev);
 
 	if (sync_mode) {
-		printf("Reading samples in sync mode...\n");
-		printf("(Samples are being lost but not reported.)\n");
+		fprintf(stderr, "Reading samples in sync mode...\n");
+		fprintf(stderr, "(Samples are being lost but not reported.)\n");
 		while (!do_exit) {
 			r = rtlsdr_read_sync(dev, buffer, buf_len, &n_read);
 			if (r < 0) {
-				printf( "WARNING: sync read failed.\n");
+				fprintf(stderr, "WARNING: sync read failed.\n");
 				break;
 			}
 
 			if ((uint32_t)n_read < buf_len) {
-				printf( "Short read, samples lost, exiting!\n");
+				fprintf(stderr, "Short read, samples lost, exiting!\n");
 				break;
 			}
 			underrun_test(buffer, n_read, 1);
 		}
 	} else {
-		printf("Reading samples in async mode...\n");
+		fprintf(stderr, "Reading samples in async mode...\n");
 		r = rtlsdr_read_async(dev, rtlsdr_callback, NULL, buf_num, buf_len);
 	}
 
 	if (do_exit) {
-		printf( "\nUser cancel, exiting...\n");
-		printf( "Samples per million lost (minimum): %i\n", (int)(1000000L * dropped_samples / total_samples));
+		fprintf(stderr, "\nUser cancel, exiting...\n");
+		fprintf(stderr, "Samples per million lost (minimum): %i\n", (int)(1000000L * dropped_samples / total_samples));
 	}
 	else
-		printf( "\nLibrary error %d, exiting...\n", r);
+		fprintf(stderr, "\nLibrary error %d, exiting...\n", r);
 
 exit:
 	rtlsdr_close(dev);

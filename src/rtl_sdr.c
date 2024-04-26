@@ -48,14 +48,14 @@ static rtlsdr_dev_t *dev = NULL;
 
 void usage(void)
 {
-	printf("rtl_sdr, an I/Q recorder for RTL2832 based DVB-T receivers\n"
+	fprintf(stderr, "rtl_sdr, an I/Q recorder for RTL2832 based DVB-T receivers\n"
 		   "Version %d.%d.%d.%d, %s\n",
 		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
-	printf("rtlsdr library %d.%d.%d.%d %s\n\n",
+	fprintf(stderr, "rtlsdr library %d.%d.%d.%d %s\n\n",
 		rtlsdr_get_version()>>24, rtlsdr_get_version()>>16 & 0xFF,
 		rtlsdr_get_version()>>8 & 0xFF, rtlsdr_get_version() & 0xFF,
 		rtlsdr_get_ver_id() );
-	printf("Usage:\t -f frequency_to_tune_to [Hz]\n"
+	fprintf(stderr, "Usage:\t -f frequency_to_tune_to [Hz]\n"
 		"\t[-s samplerate (default: 2048000 Hz)]\n"
 		"\t[-w tuner_bandwidth (default: automatic)]\n"
 		"\t[-d device_index or serial (default: 0)]\n"
@@ -78,7 +78,7 @@ BOOL WINAPI
 sighandler(int signum)
 {
 	if (CTRL_C_EVENT == signum) {
-		printf( "Signal caught, exiting!\n");
+		fprintf(stderr, "Signal caught, exiting!\n");
 		do_exit = 1;
 		rtlsdr_cancel_async(dev);
 		return TRUE;
@@ -88,7 +88,7 @@ sighandler(int signum)
 #else
 static void sighandler(int signum)
 {
-	printf( "Signal caught, exiting!\n");
+	fprintf(stderr, "Signal caught, exiting!\n");
 	do_exit = 1;
 	rtlsdr_cancel_async(dev);
 }
@@ -107,7 +107,7 @@ static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 		}
 
 		if (fwrite(buf, 1, len, (FILE*)ctx) != len) {
-			printf( "Short write, samples lost, exiting!\n");
+			fprintf(stderr, "Short write, samples lost, exiting!\n");
 			rtlsdr_cancel_async(dev);
 		}
 		else
@@ -197,12 +197,9 @@ int main(int argc, char **argv)
 
 	if(out_block_size < MINIMAL_BUF_LENGTH ||
 	   out_block_size > MAXIMAL_BUF_LENGTH ){
-		printf(
-			"Output block size wrong value, falling back to default\n");
-		printf(
-			"Minimal length: %u\n", MINIMAL_BUF_LENGTH);
-		printf(
-			"Maximal length: %u\n", MAXIMAL_BUF_LENGTH);
+		fprintf(stderr, "Output block size wrong value, falling back to default\n");
+		fprintf(stderr, "Minimal length: %u\n", MINIMAL_BUF_LENGTH);
+		fprintf(stderr, "Maximal length: %u\n", MAXIMAL_BUF_LENGTH);
 		out_block_size = DEFAULT_BUF_LENGTH;
 	}
 
@@ -218,7 +215,7 @@ int main(int argc, char **argv)
 
 	r = rtlsdr_open(&dev, (uint32_t)dev_index);
 	if (r < 0) {
-		printf( "Failed to open rtlsdr device #%d.\n", dev_index);
+		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
 #ifndef _WIN32
@@ -245,10 +242,10 @@ int main(int argc, char **argv)
 		 /* Enable automatic gain */
 		verbose_auto_gain(dev);
 		rtlsdr_set_agc_mode(dev, 1);
-		printf("Set agc mode 1\n");
+		fprintf(stderr, "Set agc mode 1\n");
 	}
 	else if(gain < 0) {
-		printf("Set software AGC\n");
+		fprintf(stderr, "Set software AGC\n");
 		rtlsdr_set_tuner_gain_mode(dev, 2);
 	} else {
 		/* Enable manual gain */
@@ -270,7 +267,7 @@ int main(int argc, char **argv)
 	} else {
 		file = fopen(filename, "wb");
 		if (!file) {
-			printf( "Failed to open %s\n", filename);
+			fprintf(stderr, "Failed to open %s\n", filename);
 			goto out;
 		}
 		if (writeWav) {
@@ -282,11 +279,11 @@ int main(int argc, char **argv)
 	verbose_reset_buffer(dev);
 
 	if (sync_mode) {
-		printf("Reading samples in sync mode...\n");
+		fprintf(stderr, "Reading samples in sync mode...\n");
 		while (!do_exit) {
 			r = rtlsdr_read_sync(dev, buffer, out_block_size, &n_read);
 			if (r < 0) {
-				printf( "WARNING: sync read failed.\n");
+				fprintf(stderr, "WARNING: sync read failed.\n");
 				break;
 			}
 
@@ -296,13 +293,13 @@ int main(int argc, char **argv)
 			}
 
 			if (fwrite(buffer, 1, n_read, file) != (size_t)n_read) {
-				printf( "Short write, samples lost, exiting!\n");
+				fprintf(stderr, "Short write, samples lost, exiting!\n");
 				break;
 			}
 			waveDataSize += n_read;
 
 			if ((uint32_t)n_read < out_block_size) {
-				printf( "Short read, samples lost, exiting!\n");
+				fprintf(stderr, "Short read, samples lost, exiting!\n");
 				break;
 			}
 
@@ -310,7 +307,7 @@ int main(int argc, char **argv)
 				bytes_to_read -= n_read;
 		}
 	} else {
-		printf("Reading samples in async mode...\n");
+		fprintf(stderr, "Reading samples in async mode...\n");
 		r = rtlsdr_read_async(dev, rtlsdr_callback, (void *)file,
 				      0, out_block_size);
 	}
@@ -320,9 +317,9 @@ int main(int argc, char **argv)
 	}
 
 	if (do_exit)
-		printf( "\nUser cancel, exiting...\n");
+		fprintf(stderr, "\nUser cancel, exiting...\n");
 	else
-		printf( "\nLibrary error %d, exiting...\n", r);
+		fprintf(stderr, "\nLibrary error %d, exiting...\n", r);
 
 	if (file != stdout)
 		fclose(file);

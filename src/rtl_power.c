@@ -121,14 +121,14 @@ int peak_hold = 0;
 
 void usage(void)
 {
-	printf("rtl_power, a simple FFT logger for RTL2832 based DVB-T receivers\n"
+	fprintf(stderr, "rtl_power, a simple FFT logger for RTL2832 based DVB-T receivers\n"
 		   "Version %d.%d.%d.%d, %s\n",
 		   RTLSDR_MAJOR, RTLSDR_MINOR, RTLSDR_MICRO, RTLSDR_NANO, __DATE__);
-	printf("rtlsdr library %d.%d.%d.%d %s\n\n",
+	fprintf(stderr, "rtlsdr library %d.%d.%d.%d %s\n\n",
 		rtlsdr_get_version()>>24, rtlsdr_get_version()>>16 & 0xFF,
 		rtlsdr_get_version()>>8 & 0xFF, rtlsdr_get_version() & 0xFF,
 		rtlsdr_get_ver_id() );
-	printf("Use:\trtl_power -f freq_range [-options] [filename]\n"
+	fprintf(stderr, "Use:\trtl_power -f freq_range [-options] [filename]\n"
 		"\t-f lower:upper:bin_size [Hz]\n"
 		"\t (bin size is a maximum, smaller more convenient bins\n"
 		"\t  will be used.  valid range 1Hz - 2.8MHz)\n"
@@ -141,7 +141,7 @@ void usage(void)
 		"\t[-d device_index or serial (default: 0)]\n"
 		"\t[-g tuner_gain (default: automatic)]\n"
 		"\t[-p ppm_error (default: 0)]\n"
-		"\t[-T enable bias-T on GPIO PIN 0 (works for rtl-sdr.com v3 dongles)]\n"
+		"\t[-T enable bias-T on GPIO PIN 0 (works for rtl-sdr.com v3/v4 dongles)]\n"
 		"\t[-D direct_sampling_mode (default: 0, 1 = I, 2 = Q, 3 = I below threshold, 4 = Q below threshold)]\n"
 		"\t[-D direct_sampling_threshold_frequency (default: 0 use tuner specific frequency threshold for 3 and 4)]\n"
 		"\tfilename (a '-' dumps samples to stdout)\n"
@@ -183,11 +183,11 @@ void multi_bail(void)
 {
 	if (do_exit == 1)
 	{
-		printf( "Signal caught, finishing scan pass.\n");
+		fprintf(stderr, "Signal caught, finishing scan pass.\n");
 	}
 	if (do_exit >= 2)
 	{
-		printf( "Signal caught, aborting immediately.\n");
+		fprintf(stderr, "Signal caught, aborting immediately.\n");
 	}
 }
 
@@ -256,7 +256,7 @@ void sine_table(int size)
 	{
 		d = (double)i * 2.0 * M_PI / N_WAVE;
 		Sinewave[i] = (int)round(32767*sin(d));
-		//printf("%i\n", Sinewave[i]);
+		//fprintf(stderr, "%i\n", Sinewave[i]);
 	}
 }
 
@@ -495,7 +495,7 @@ void frequency_range(char *arg, double crop)
 		crop = 0;
 	}
 	if (tune_count > MAX_TUNES) {
-		printf( "Error: bandwidth too wide.\n");
+		fprintf(stderr, "Error: bandwidth too wide.\n");
 		exit(1);
 	}
 	buf_len = 2 * (1<<bin_e) * downsample;
@@ -514,7 +514,7 @@ void frequency_range(char *arg, double crop)
 		ts->downsample_passes = downsample_passes;
 		ts->avg = (long*)malloc((1<<bin_e) * sizeof(long));
 		if (!ts->avg) {
-			printf( "Error: malloc.\n");
+			fprintf(stderr, "Error: malloc.\n");
 			exit(1);
 		}
 		for (j=0; j<(1<<bin_e); j++) {
@@ -522,21 +522,21 @@ void frequency_range(char *arg, double crop)
 		}
 		ts->buf8 = (uint8_t*)malloc(buf_len * sizeof(uint8_t));
 		if (!ts->buf8) {
-			printf( "Error: malloc.\n");
+			fprintf(stderr, "Error: malloc.\n");
 			exit(1);
 		}
 		ts->buf_len = buf_len;
 	}
 	/* report */
-	printf("Number of frequency hops: %i\n", tune_count);
-	printf("Dongle bandwidth: %iHz\n", bw_used);
-	printf("Downsampling by: %ix\n", downsample);
-	printf("Cropping by: %0.2f%%\n", crop*100);
-	printf("Total FFT bins: %i\n", tune_count * (1<<bin_e));
-	printf("Logged FFT bins: %i\n", \
+	fprintf(stderr, "Number of frequency hops: %i\n", tune_count);
+	fprintf(stderr, "Dongle bandwidth: %iHz\n", bw_used);
+	fprintf(stderr, "Downsampling by: %ix\n", downsample);
+	fprintf(stderr, "Cropping by: %0.2f%%\n", crop*100);
+	fprintf(stderr, "Total FFT bins: %i\n", tune_count * (1<<bin_e));
+	fprintf(stderr, "Logged FFT bins: %i\n", \
 	  (int)((double)(tune_count * (1<<bin_e)) * (1.0-crop)));
-	printf("FFT bin size: %0.2fHz\n", bin_size);
-	printf("Buffer size: %i bytes (%0.2fms)\n", buf_len, 1000 * 0.5 * (float)buf_len / (float)bw_used);
+	fprintf(stderr, "FFT bin size: %0.2fHz\n", bin_size);
+	fprintf(stderr, "Buffer size: %i bytes (%0.2fms)\n", buf_len, 1000 * 0.5 * (float)buf_len / (float)bw_used);
 }
 
 void retune(rtlsdr_dev_t *d, int freq)
@@ -548,7 +548,7 @@ void retune(rtlsdr_dev_t *d, int freq)
 	usleep(5000);
 	rtlsdr_read_sync(d, &dump, BUFFER_DUMP, &n_read);
 	if (n_read != BUFFER_DUMP) {
-		printf( "Error: bad retune.\n");}
+		fprintf(stderr, "Error: bad retune.\n");}
 }
 
 void fifth_order(int16_t *data, int length)
@@ -656,7 +656,7 @@ void scanner(void)
 			retune(dev, ts->freq);}
 		rtlsdr_read_sync(dev, ts->buf8, buf_len, &n_read);
 		if (n_read != buf_len) {
-			printf( "Error: dropped samples.\n");}
+			fprintf(stderr, "Error: dropped samples.\n");}
 		/* rms */
 		if (bin_len == 1) {
 			rms_power(ts);
@@ -882,12 +882,12 @@ int main(int argc, char **argv)
 	}
 
 	if (!f_set) {
-		printf( "No frequency range provided.\n");
+		fprintf(stderr, "No frequency range provided.\n");
 		exit(1);
 	}
 
 	if ((crop < 0.0) || (crop > 1.0)) {
-		printf( "Crop value outside of 0 to 1.\n");
+		fprintf(stderr, "Crop value outside of 0 to 1.\n");
 		exit(1);
 	}
 
@@ -905,7 +905,7 @@ int main(int argc, char **argv)
 	if (interval < 1) {
 		interval = 1;}
 
-	printf("Reporting every %i seconds\n", interval);
+	fprintf(stderr, "Reporting every %i seconds\n", interval);
 
 	if (!dev_given) {
 		dev_index = verbose_device_search("0");
@@ -917,7 +917,7 @@ int main(int argc, char **argv)
 
 	r = rtlsdr_open(&dev, (uint32_t)dev_index);
 	if (r < 0) {
-		printf( "Failed to open rtlsdr device #%d.\n", dev_index);
+		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
 #ifndef _WIN32
@@ -955,7 +955,7 @@ int main(int argc, char **argv)
 
 	rtlsdr_set_bias_tee(dev, enable_biastee);
 	if (enable_biastee)
-		printf("activated bias-T on GPIO PIN 0\n");
+		fprintf(stderr, "activated bias-T on GPIO PIN 0\n");
 
 	if (strcmp(filename, "-") == 0) { /* Write log to stdout */
 		file = stdout;
@@ -966,7 +966,7 @@ int main(int argc, char **argv)
 	} else {
 		file = fopen(filename, "wb");
 		if (!file) {
-			printf( "Failed to open %s\n", filename);
+			fprintf(stderr, "Failed to open %s\n", filename);
 			exit(1);
 		}
 	}
@@ -1010,9 +1010,9 @@ int main(int argc, char **argv)
 	/* clean up */
 
 	if (do_exit) {
-		printf( "\nUser cancel, exiting...\n");}
+		fprintf(stderr, "\nUser cancel, exiting...\n");}
 	else {
-		printf( "\nLibrary error %d, exiting...\n", r);}
+		fprintf(stderr, "\nLibrary error %d, exiting...\n", r);}
 
 	if (file != stdout) {
 		fclose(file);}
