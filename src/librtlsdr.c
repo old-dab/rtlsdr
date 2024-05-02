@@ -737,7 +737,7 @@ static BOOL Open_Device(rtlsdr_dev_t *dev, char *DevicePath)
 	bResult = WinUsb_Initialize(dev->deviceHandle, &dev->devh);
 	if(!bResult)
 	{
-		fprintf(stderr, "WinUsb_Initialize failed\n");
+		fprintf(stderr, "WinUsb_Initialize failed. ErrorCode:%08lXh\n", GetLastError());
 		Close_Device(dev);
 	}
 	return bResult;
@@ -2638,10 +2638,11 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 				break;
 		}
 	}
-	//Sleep((int)((int64_t)buf_num * buf_len * 500 / dev->rate)); //Duration of buf_num blocks
 
 	// Stop transfers
 	rtlsdr_write_reg(dev, USBB, USB_EPA_CTL, 0x1002, 2);
+	if(!WinUsb_ResetPipe(dev->devh, EP_RX))
+		fprintf(stderr, "WinUsb_ResetPipe failed. ErrorCode: %08lXh\n", GetLastError());
 	if(!WinUsb_AbortPipe(dev->devh, EP_RX))
 		fprintf(stderr, "WinUsb_AbortPipe failed. ErrorCode: %08lXh\n", GetLastError());
 
