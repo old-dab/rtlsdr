@@ -1167,6 +1167,7 @@ int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, int32_t freq)
 {
 	uint32_t rtl_xtal;
 	int32_t if_freq;
+	uint8_t tmp;
 	int r;
 
 	if (!dev)
@@ -1178,8 +1179,12 @@ int rtlsdr_set_if_freq(rtlsdr_dev_t *dev, int32_t freq)
 
 	if_freq = ((freq * TWO_POW(22)) / rtl_xtal) * (-1);
 
-	r = rtlsdr_demod_write_reg(dev, 1, 0x19, (if_freq >> 16) & 0x3f, 1);
-	r |= rtlsdr_demod_write_reg(dev, 1, 0x1a, if_freq & 0xffff, 2);
+	tmp = (if_freq >> 16) & 0x3f;
+	r = rtlsdr_demod_write_reg(dev, 1, 0x19, tmp, 1);
+	tmp = (if_freq >> 8) & 0xff;
+	r |= rtlsdr_demod_write_reg(dev, 1, 0x1a, tmp, 1);
+	tmp = if_freq & 0xff;
+	r |= rtlsdr_demod_write_reg(dev, 1, 0x1b, tmp, 1);
 
 	return r;
 }
