@@ -205,6 +205,7 @@ sighandler(int signum)
 #else
 static void sighandler(int signum)
 {
+	(void) signum;
 	do_exit++;
 	multi_bail();
 }

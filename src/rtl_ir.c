@@ -102,6 +102,7 @@ sighandler(int signum)
 #else
 static void sighandler(int signum)
 {
+	(void) signum;
 	fprintf(stderr, "Signal caught, exiting!\n");
 	do_exit = 1;
 	rtlsdr_cancel_async(dongle.dev);
