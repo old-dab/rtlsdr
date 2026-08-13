@@ -2590,9 +2590,9 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 	if(overlapped)
 	{
 		for(i = 0; i < buf_num; ++i)
-			overlapped[i] = calloc(sizeof(OVERLAPPED), 1);
+			overlapped[i] = calloc(1, sizeof(OVERLAPPED));
 	}
-	xfer_buf = calloc(buf_num * sizeof(unsigned char *), 1);
+	xfer_buf = calloc(1, buf_num * sizeof(unsigned char *));
 	if(xfer_buf)
 	{
 		for(i = 0; i < buf_num; ++i)

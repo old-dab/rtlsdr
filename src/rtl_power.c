@@ -328,6 +328,8 @@ int fix_fft(int16_t iq[], int m)
 
 double rectangle(int i, int length)
 {
+	(void) i;
+	(void) length;
 	return 1.0;
 }
 
@@ -392,6 +394,8 @@ double youssef(int i, int length)
 double kaiser(int i, int length)
 // todo, become more smart
 {
+	(void) i;
+	(void) length;
 	return 1.0;
 }
 

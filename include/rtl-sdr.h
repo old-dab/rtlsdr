@@ -25,8 +25,12 @@ extern "C" {
 #endif
 
 #ifdef _WIN32
+#ifdef __MINGW32__
+#include <unistd.h>
+#else
 #define usleep(x) Sleep(x/1000)
 #endif
+#endif /* _WIN32 */
 
 #define RTLSDR_OLD_DAB 1
 

@@ -250,6 +250,7 @@ static void ppm_test(uint32_t len)
 
 static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 {
+	(void) ctx;
 	underrun_test(buf, len, 0);
 
 	if (test_mode == PPM_BENCHMARK)

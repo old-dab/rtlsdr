@@ -1412,6 +1412,8 @@ static void optimal_settings(uint32_t freq, uint32_t rate)
 	struct dongle_state *d = &dongle;
 	struct demod_state *dm = &demod;
 	struct controller_state *cs = &controller;
+	(void) rate;
+
 	dm->downsample = (MinCaptureRate / dm->rate_in) + 1;
 	if (dm->downsample_passes) {
 		dm->downsample_passes = (int)log2(dm->downsample) + 1;
@@ -1515,7 +1517,7 @@ static void *controller_thread_fn(void *arg)
 			/* 1- set center frequency */
 			if (c->prevFreq != dongle.freq) {
 				rtlsdr_set_center_freq(dongle.dev, dongle.freq);
-				c->prevFreq != dongle.freq;
+				c->prevFreq = dongle.freq;
 			}
 			/* 2- Set the tuner gain */
 			if (c->prevGain != c->gain) {
@@ -1545,7 +1547,7 @@ static void *controller_thread_fn(void *arg)
 				if (r < 0)
 					fprintf(stderr, "WARNING: Failed to set bandwidth.\n");
 				else
-					c->prevBandwidth != dongle.bandwidth;
+					c->prevBandwidth = dongle.bandwidth;
 			}
 			/* 4- Set ADC samplerate *
 			r = rtlsdr_set_sample_rate(dongle.dev, dongle.rate);
@@ -1705,7 +1707,7 @@ int main(int argc, char **argv)
 	int r, opt;
 	int dev_given = 0;
 	int writeWav = 0;
-	int custom_ppm = 0;
+	//int custom_ppm = 0;
 	int enable_biastee = 0;
 	const char * rtlOpts = NULL;
 	enum rtlsdr_ds_mode ds_mode = RTLSDR_DS_IQ;
@@ -1780,7 +1782,7 @@ int main(int argc, char **argv)
 			break;
 		case 'p':
 			dongle.ppm_error = atof(optarg);
-			custom_ppm = 1;
+			//custom_ppm = 1;
 			break;
 		case 'E':
 			if (strcmp("edge",  optarg) == 0) {

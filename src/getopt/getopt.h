@@ -17,6 +17,10 @@
    Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
    02111-1307 USA.  */
 
+#ifdef __MINGW32__
+#include <getopt.h>
+#else
+
 #ifndef _GETOPT_H
 
 #ifndef __need_getopt
@@ -178,3 +182,5 @@ extern int _getopt_internal ();
 #undef __need_getopt
 
 #endif /* getopt.h */
+
+#endif /* __MINGW32__ */
