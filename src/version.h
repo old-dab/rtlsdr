@@ -7,7 +7,7 @@
 #define RTLSDR_MINOR 9
 #endif
 #ifndef RTLSDR_MICRO
-#define RTLSDR_MICRO 7
+#define RTLSDR_MICRO 8
 #endif
 #ifndef RTLSDR_NANO
 #define RTLSDR_NANO	0

@@ -535,6 +535,7 @@ RTLSDR_API int rtlsdr_set_bias_tee(rtlsdr_dev_t *dev, int on);
  */
 RTLSDR_API int rtlsdr_set_bias_tee_gpio(rtlsdr_dev_t *dev, int gpio, int on);
 
+RTLSDR_API int rtlsdr_check_dongle_model(void *dev, char *manufact_check, char *product_check);
 
 /*!
  * Sets multiple options from a string encoded like "bw=300:agc=0:gain=27.3:dagc=0:T=1".
