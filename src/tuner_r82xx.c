@@ -656,6 +656,12 @@ static const int16_t abs_freqs_rtlsdr_v4[] = {
 static const int16_t abs_gains_rtlsdr_v4[] = {
 210,136,112,101,114,138,169,215,255,167,165,168,168,182,171,170,160,159,160,159,152,152,148,148,126,127,127,128,141,140,141,140,149,129,130,140,126,120,115,114,119,127,114,115,114,119,146,119,109,106, 97, 94, 94, 97,106,115,137,169, 189, 206, 211, 208};
 
+//RTL-SDR Blog V4L
+static const int16_t abs_freqs_rtlsdr_v4l[] = {
+  1,  3,  5, 10, 15, 20, 23, 25, 27, 27, 28, 30, 32, 35, 40, 50, 50, 55, 55, 60, 60, 65, 65, 70, 70, 75, 75,100,100,140,140,174,174,200,200,240,240,280,280,320,345,345,600,850,1000,1500,1700,1750};
+static const int16_t abs_gains_rtlsdr_v4l[] = {
+210,136,112,101,114,138,169,215,255,169,161,149,141,134,137,143,139,139,127,127,127,127,118,118,113,114, 90, 92,104,107,107,102, 86, 83, 77, 72, 69, 68, 59, 66, 71, 71, 92,109, 118, 138, 145, 153};
+
 static void calculate_abs_gain(struct r82xx_priv *priv)
 {
 	if (priv->cfg->rafael_chip == CHIP_R828D)
@@ -665,6 +671,8 @@ static void calculate_abs_gain(struct r82xx_priv *priv)
 		else
 			priv->abs_gain = interpolate(priv->freq, ARRAY_SIZE(abs_gains_r828d), abs_freqs_r828d, abs_gains_r828d);
 	}
+	else if (priv->cfg->rafael_chip == CHIP_R828S)
+		priv->abs_gain = interpolate(priv->freq, ARRAY_SIZE(abs_gains_rtlsdr_v4l), abs_freqs_rtlsdr_v4l, abs_gains_rtlsdr_v4l);
 	else
 		priv->abs_gain = interpolate(priv->freq, ARRAY_SIZE(abs_gains_r820t), abs_freqs_r820t, abs_gains_r820t);
 }
@@ -969,7 +977,7 @@ int r82xx_set_i2c_register(struct r82xx_priv *priv, unsigned i2c_register, unsig
 
 static const int16_t lna_freqs_r820t[] = {
 	  25,  30,  50,  75, 100, 200, 500, 750, 980,1250,1500,1700};
-static const int16_t lna_gains_r820t[][16] = {
+static const int16_t lna_gains_r820t[][12] = {
 	{  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0},
 	{ 36,  36,  35,  35,  35,  35,  33,  30,  29,  28,  30,  30},
 	{ 77,  76,  74,  74,  74,  74,  70,  66,  65,  64,  69,  68},
@@ -989,7 +997,7 @@ static const int16_t lna_gains_r820t[][16] = {
 
 static const int16_t lna_freqs_r828d[] = {
 	  25,  30,  50, 100, 200, 345, 345, 500, 750, 980,1250,1500,1700};
-static const int16_t lna_gains_r828d[][16] = {
+static const int16_t lna_gains_r828d[][13] = {
 	{  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0},
 	{ 43,  41,  37,  35,  36,  41,  42,  39,  33,  32,  33,  29,  29},
 	{ 99,  94,  84,  78,  79,  87,  87,  82,  71,  69,  72,  67,  64},
@@ -1026,6 +1034,26 @@ static const int16_t lna_gains_rtlsdr_v4[][21] = {
 	{371, 370, 368, 356, 349, 328, 326, 326, 324, 338, 356, 352, 352, 343, 332, 328, 301, 278, 259, 248, 244},
 	{419, 417, 413, 392, 379, 351, 348, 351, 348, 371, 396, 386, 384, 377, 363, 353, 325, 300, 279, 266, 260},
 	{446, 443, 438, 415, 400, 372, 369, 372, 369, 394, 420, 408, 404, 379, 370, 377, 355, 326, 303, 287, 274}};
+
+static const int16_t lna_freqs_rtlsdr_v4l[] = {
+	   1,  10,  27,  27, 30,  50,  75, 100, 200, 500, 750, 980,1250,1500,1700};
+static const int16_t lna_gains_rtlsdr_v4l[][15] = {
+	{  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0},
+	{ 19,  20,  22,  36,  36,  35,  35,  35,  35,  33,  30,  29,  28,  30,  30},
+	{ 45,  48,  51,  76,  76,  74,  74,  74,  74,  70,  66,  65,  64,  69,  68},
+	{ 98, 100, 101, 113, 113, 109, 108, 108, 107, 105, 103, 104, 104, 104, 104},
+	{129, 130, 130, 141, 141, 136, 131, 131, 130, 131, 134, 137, 139, 130, 124},
+	{132, 134, 136, 155, 155, 150, 147, 146, 145, 146, 149, 152, 154, 147, 142},
+	{135, 137, 140, 180, 180, 176, 174, 172, 172, 173, 176, 179, 181, 175, 170},
+	{164, 166, 169, 205, 205, 201, 200, 199, 198, 200, 202, 205, 206, 202, 194},
+	{197, 199, 201, 231, 231, 228, 227, 226, 226, 229, 231, 233, 230, 227, 215},
+	{230, 232, 234, 258, 258, 254, 254, 254, 253, 255, 253, 249, 240, 232, 211},
+	{264, 265, 267, 279, 279, 275, 274, 273, 271, 274, 267, 256, 242, 233, 213},
+	{299, 300, 301, 291, 291, 287, 286, 284, 282, 288, 278, 263, 246, 236, 215},
+	{333, 333, 333, 305, 305, 301, 299, 296, 294, 302, 290, 271, 251, 241, 220},
+	{371, 370, 368, 327, 327, 322, 321, 319, 316, 317, 297, 276, 256, 242, 218},
+	{419, 417, 413, 343, 343, 339, 338, 337, 334, 334, 317, 296, 272, 252, 225},
+	{446, 443, 438, 299, 299, 322, 339, 342, 343, 346, 325, 303, 279, 255, 227}};
 
 static const int r82xx_mixer_gains[]  = {
  	0, 13, 32, 49, 63, 76, 91, 105, 119, 133, 148, 161, 174, 174, 174, 174
@@ -1102,6 +1130,8 @@ static int r82xx_get_signal_strength(struct r82xx_priv *priv, unsigned char* dat
 			else
 				lna_gain = interpolate(priv->freq, ARRAY_SIZE(lna_freqs_r828d), lna_freqs_r828d, lna_gains_r828d[lna_index]);
 		}
+		else if (priv->cfg->rafael_chip == CHIP_R828S)
+			lna_gain = interpolate(priv->freq, ARRAY_SIZE(lna_freqs_rtlsdr_v4l), lna_freqs_rtlsdr_v4l, lna_gains_rtlsdr_v4l[lna_index]);
 		else
 			lna_gain = interpolate(priv->freq, ARRAY_SIZE(lna_freqs_r820t), lna_freqs_r820t, lna_gains_r820t[lna_index]);
 	}
@@ -1230,7 +1260,7 @@ int r82xx_set_freq(struct r82xx_priv *priv, uint32_t freq)
 
 
 	is_rtlsdr_blog_v4 = (priv->cfg->xtal > 24000000.0) && (priv->cfg->rafael_chip == CHIP_R828D);
-    is_rtlsdr_blog_v4l = rtlsdr_check_dongle_model(priv->rtl_dev, "RTLSDRBlog", "Blog V4L");
+    is_rtlsdr_blog_v4l = priv->cfg->rafael_chip == CHIP_R828S;
 
 	/* if it's an RTL-SDR Blog V4, automatically upconvert by 28.8 MHz if we tune to HF
 	 * so that we don't need to manually set any upconvert offset in the SDR software */
@@ -1384,7 +1414,6 @@ err:
 /*
  * r82xx standby logic
  */
-
 int r82xx_standby(struct r82xx_priv *priv)
 {
 	int rc;

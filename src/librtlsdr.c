@@ -237,7 +237,10 @@ int r820t_init(void *dev) {
 		devt->r82xx_c.rafael_chip = CHIP_R828D;
 	} else {
 		devt->r82xx_c.i2c_addr = R820T_I2C_ADDR;
-		devt->r82xx_c.rafael_chip = CHIP_R820T;
+		if (rtlsdr_check_dongle_model(dev, "RTLSDRBlog", "Blog V4L"))
+  		  devt->r82xx_c.rafael_chip = CHIP_R828S;
+  		else
+		  devt->r82xx_c.rafael_chip = CHIP_R820T;
 	}
 
 	rtlsdr_get_xtal_freq(devt, NULL, &devt->r82xx_c.xtal);
