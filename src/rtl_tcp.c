@@ -22,7 +22,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <math.h>
 
 #ifdef DEBUG
@@ -623,7 +622,6 @@ int main(int argc, char **argv)
 	int enable_biastee = 0;
 	pthread_t tcp_worker_thread;
 	pthread_t command_thread;
-	uint64_t StartTime, EndTime;
 #ifdef DEBUG
 	pthread_t kb_thread;
 	int enable_kb_thread = 0;
@@ -738,16 +736,11 @@ int main(int argc, char **argv)
 
 	rtlsdr_cal_imr(cal_imr);
 
-	gettimeofday(&tv, NULL);
-	StartTime = (uint64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
 	rtlsdr_open(&dev, (uint32_t)dev_index);
 	if (NULL == dev) {
 	fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
-	gettimeofday(&tv, NULL);
-	EndTime = (uint64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
-	fprintf(stderr, "%d msec\n", (int)(EndTime-StartTime));
 
 #ifndef _WIN32
 	sigact.sa_handler = sighandler;
