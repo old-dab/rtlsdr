@@ -597,6 +597,10 @@ static void *receive(void *arg)
 			fprintf(stderr, "set i2c register x%03X to x%03X with mask x%02X\n", (param >> 20) & 0xfff, param & 0xfff, (param >> 12) & 0xff );
 			rtlsdr_set_tuner_i2c_register(dev, (param >> 20) & 0xfff, (param >> 12) & 0xff, param & 0xfff);
 			break;
+		case SET_TUNER_BW_IF_CENTER://0x45
+			fprintf(stderr, "set tuner band to IF frequency %i Hz from center\n", (int)param);
+			rtlsdr_set_tuner_band_center(dev, (int)param);
+			break;
 		case SET_SIDEBAND://0x46
 			fprintf(stderr, "set to %s sideband\n", param ? "upper" : "lower");
 			rtlsdr_set_tuner_sideband(dev, param);

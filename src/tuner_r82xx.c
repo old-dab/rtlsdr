@@ -206,7 +206,7 @@ R11		[7:5] 	FILT_BW			Filter bandwidth manual course tune
 								010 or 001: middle
 								111: narrowest
 		[4]		CAL_TRIGGER		channel filter auto calibration start triggering
-								1: start
+								1: start, 0: stop
 		[3:0] 	HP_COR			High pass filter corner control
 								0000: highest
 								1111: lowest
@@ -345,8 +345,8 @@ R23		[7:6] 	PW_LDO_D		PLL digital low drop out regulator supply current switch
 ------------------------------------------------------------------------------------
 R24		[7]		pw_ringout		RingPLL Test VCO Output Enable
 								0: off, 1: on
-		[6]		ring_cp_current	RingPLL charge pump curren
-								0: 15u, 1: 150u
+		[6]		ring_cp_current	RingPLL charge pump current
+								0: 15uA, 1: 150uA
 		[5]		ring_div[0]		ring_div bit 0
 0x18	[4] 	ring_pwd		RingPLL power
 								0: off, 1:on
@@ -1217,7 +1217,7 @@ int r82xx_set_bandwidth(struct r82xx_priv *priv, int bw, uint32_t * applied_bw, 
 	}
 	*applied_bw = r82xx[i].bw * 1000;
 	if (apply)
-		priv->int_freq = r82xx[i].int_freq * 1000;
+		priv->int_freq = r82xx[i].int_freq * 1000 + priv->if_band_center_freq;
 	else
 		return 0;
 
@@ -1461,7 +1461,6 @@ static int r82xx_multi_read(struct r82xx_priv *priv)
 {
 	int rc, i;
 	uint8_t data[2];
-	//uint8_t buf[4];
 	int sum = 0;
 
 #ifdef _WIN32
@@ -1691,6 +1690,7 @@ int r82xx_init(struct r82xx_priv *priv)
 	int rc, i, checksum = 0;
 	uint8_t buf[16];
 	int offset = 0x80;
+	priv->if_band_center_freq = 0;
 
 	memset(priv->reg8, 0, 16);
 	priv->old_gain = 255;
@@ -1752,4 +1752,10 @@ const int *r82xx_get_gains(int *len)
 int r82xx_set_dither(struct r82xx_priv *priv, int dither)
 {
 	return r82xx_write_reg_mask(priv, 0x12, dither ? 0x00 : 0x10, 0x10);
+}
+
+int r82xx_set_bw_center(struct r82xx_priv *priv, int32_t if_band_center_freq)
+{
+	priv->if_band_center_freq = if_band_center_freq;
+	return 0;
 }

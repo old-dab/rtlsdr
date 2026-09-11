@@ -62,6 +62,7 @@ typedef struct rtlsdr_tuner_iface {
 	int (*exit)(void *);
 	int (*set_freq)(void *, uint32_t freq /* Hz */);
 	int (*set_bw)(void *, int bw /* Hz */, uint32_t *applied_bw /* configured bw in Hz */, int apply /* 1 == configure it!, 0 == deliver applied_bw */);
+	int (*set_bw_center)(void *, int32_t if_band_center_freq);
 	int (*set_gain_index)(void *, unsigned int index);
 	int (*set_if_gain)(void *, int stage, int gain /* tenth dB */);
 	int (*set_gain_mode)(void *, int manual);
@@ -277,6 +278,13 @@ int r820t_set_bw(void *dev, int bw, uint32_t *applied_bw, int apply) {
 	return rtlsdr_set_center_freq(devt, devt->freq);
 }
 
+int r820t_set_bw_center(void *dev, int32_t if_band_center_freq) {
+	uint32_t applied_bw;
+	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
+	r82xx_set_bw_center(&devt->r82xx_p, if_band_center_freq);
+    return r820t_set_bw(devt, devt->bw, &applied_bw, 1);
+}
+
 int r820t_set_gain_index(void *dev, unsigned int index) {
 	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
 	return r82xx_set_gain_index(&devt->r82xx_p, index);
@@ -312,41 +320,41 @@ int r820t_set_sideband(void *dev, int sideband) {
 /* definition order must match enum rtlsdr_tuner */
 static rtlsdr_tuner_iface_t tuners[] = {
 	{
-		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL /* dummy for unknown tuners */
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL /* dummy for unknown tuners */
 	},
 	{
 		e4000_init, e4000_exit,
-		e4000_set_freq, e4000_set_bw, e4000_set_gain_index, e4000_set_if_gain,
+		e4000_set_freq, e4000_set_bw, NULL, e4000_set_gain_index, e4000_set_if_gain,
 		e4000_set_gain_mode, e4000_set_i2c_register,
 		e4000_get_i2c_register, NULL, e4k_get_gains
 	},
 	{
 		fc0012_init, fc0012_exit,
-		fc0012_set_freq, fc001x_set_bw, fc0012_set_gain_index, NULL,
+		fc0012_set_freq, fc001x_set_bw, NULL, fc0012_set_gain_index, NULL,
 		fc001x_set_gain_mode, fc001x_set_i2c_register,
 		fc0012_get_i2c_register, NULL, fc001x_get_gains
 	},
 	{
 		fc0013_init, fc0013_exit,
-		fc0013_set_freq, fc001x_set_bw, fc0013_set_gain_index, NULL,
+		fc0013_set_freq, fc001x_set_bw, NULL, fc0013_set_gain_index, NULL,
 		fc001x_set_gain_mode, fc001x_set_i2c_register,
 		fc0013_get_i2c_register, NULL, fc001x_get_gains
 	},
 	{
 		fc2580_init, fc2580_exit,
-		fc2580_set_freq, fc2580_set_bw, fc2580_set_gain_index, NULL,
+		fc2580_set_freq, fc2580_set_bw, NULL, fc2580_set_gain_index, NULL,
 		fc2580_set_gain_mode, fc2580_set_i2c_register,
 		fc2580_get_i2c_register, NULL, fc2580_get_gains
 	},
 	{
 		r820t_init, r820t_exit,
-		r820t_set_freq, r820t_set_bw, r820t_set_gain_index, NULL,
+		r820t_set_freq, r820t_set_bw, r820t_set_bw_center, r820t_set_gain_index, NULL,
 		r820t_set_gain_mode, r820t_set_i2c_register,
 		r820t_get_i2c_register, r820t_set_sideband, r82xx_get_gains
 	},
 	{
 		r820t_init, r820t_exit,
-		r820t_set_freq, r820t_set_bw, r820t_set_gain_index, NULL,
+		r820t_set_freq, r820t_set_bw, r820t_set_bw_center, r820t_set_gain_index, NULL,
 		r820t_set_gain_mode, r820t_set_i2c_register,
 		r820t_get_i2c_register, r820t_set_sideband, r82xx_get_gains
 	},
@@ -1464,6 +1472,13 @@ int rtlsdr_set_tuner_bandwidth(rtlsdr_dev_t *dev, uint32_t bw )
 	return rtlsdr_set_and_get_tuner_bandwidth(dev, bw, &applied_bw, 1 /* =apply_bw */ );
 }
 
+int rtlsdr_set_tuner_band_center(rtlsdr_dev_t *dev, int32_t if_band_center_freq)
+{
+	if (!dev || !dev->tuner || !dev->tuner->set_bw_center)
+		return -1;
+
+	return dev->tuner->set_bw_center(dev, if_band_center_freq);
+}
 
 int rtlsdr_set_tuner_gain_index(rtlsdr_dev_t *dev, unsigned int index)
 {

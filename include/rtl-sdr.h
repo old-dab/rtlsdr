@@ -308,6 +308,15 @@ RTLSDR_API int rtlsdr_set_and_get_tuner_bandwidth(rtlsdr_dev_t *dev, uint32_t bw
 RTLSDR_API int rtlsdr_set_tuner_bandwidth(rtlsdr_dev_t *dev, uint32_t bw );
 
 /*!
+ * Sets the center of the filtered tuner band.
+ *
+ * \param dev the device handle given by rtlsdr_open()
+ * \param if_band_center_freq in Hz. Zero means, that band center shall be at default IF).
+ * \return 0 on success
+ */
+RTLSDR_API int rtlsdr_set_tuner_band_center(rtlsdr_dev_t *dev, int32_t if_band_center_freq);
+
+/*!
  * Set the mixer sideband for the device.
  *
  * \param dev the device handle given by rtlsdr_open()

@@ -73,6 +73,7 @@ struct r82xx_priv {
 	int							has_lock;
 	int							init_done;
 	int							sideband;
+	int							if_band_center_freq;
 	void 						*rtl_dev;
 };
 
@@ -92,5 +93,6 @@ int r82xx_set_i2c_register(struct r82xx_priv *priv, unsigned i2c_register, unsig
 int r82xx_get_i2c_register(struct r82xx_priv *priv, unsigned char* data, int *len, int *strength);
 int r82xx_set_sideband(struct r82xx_priv *priv, int sideband);
 int r82xx_set_dither(struct r82xx_priv *priv, int dither);
+int r82xx_set_bw_center(struct r82xx_priv *priv, int32_t if_band_center_freq);
 const int *r82xx_get_gains(int *len);
 #endif
