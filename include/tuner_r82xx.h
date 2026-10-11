@@ -75,6 +75,7 @@ struct r82xx_priv {
 	int							sideband;
 	int							if_band_center_freq;
 	void 						*rtl_dev;
+	uint8_t						fil_cal_code;
 };
 
 struct r82xx_freq_range {

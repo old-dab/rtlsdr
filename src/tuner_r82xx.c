@@ -1184,32 +1184,98 @@ static const struct r82xx_val r82xx[]= {
 	{ 900, 0x0f, 0xeb, 1500},
 	{1150, 0x0f, 0xec, 1380},
 	{1250, 0x0f, 0xed, 1340},
-	{1370, 0x0f, 0xee, 1305},
-	{1410, 0x0e, 0xee, 1320},
-	{1440, 0x0d, 0xee, 1340},
-	{1480, 0x0c, 0xee, 1360},
-	{1510, 0x0b, 0xee, 1375},
-	{1550, 0x0a, 0xee, 1395},
-	{1590, 0x09, 0xee, 1415},
-	{1630, 0x08, 0xee, 1435},
-	{1660, 0x07, 0xee, 1450},
-	{1700, 0x06, 0xee, 1470},
+	{1350, 0x0f, 0xee, 1295},
+	{1380, 0x0e, 0xee, 1310},
+	{1420, 0x0d, 0xee, 1330},
+	{1460, 0x0c, 0xee, 1350},
+	{1490, 0x0b, 0xee, 1365},
+	{1530, 0x0a, 0xee, 1385},
+	{1570, 0x09, 0xee, 1405},
+	{1600, 0x08, 0xee, 1420},
+	{1650, 0x07, 0xee, 1445},
+	{1690, 0x06, 0xee, 1465},
 	{1740, 0x05, 0xee, 1490},
-	{1790, 0x04, 0xee, 1515},
-	{1830, 0x03, 0xee, 1535},
-	{1870, 0x02, 0xee, 1555},
-	{2000, 0x09, 0xae, 1580},
-	{2100, 0x0f, 0x8e, 1620},
-	{2900, 0x04, 0x8e, 2060},
-	{5000, 0x0b, 0x6b, 3570},
+	{1780, 0x04, 0xee, 1510},
+	{1830, 0x0b, 0xae, 1535},
+	{1870, 0x0a, 0xae, 1555},
+	{1930, 0x09, 0xae, 1585},
+	{1980, 0x08, 0xae, 1610},
+	{2040, 0x07, 0xae, 1640},
+	{2090, 0x06, 0xae, 1665},
+	{2160, 0x05, 0xae, 1700},
+	{2190, 0x04, 0xae, 1715},
+	{2250, 0x0b, 0x8e, 1745},
+	{2330, 0x0a, 0x8e, 1785},
+	{2410, 0x09, 0x8e, 1825},
+	{2480, 0x08, 0x8e, 1860},
+	{2560, 0x07, 0x8e, 1900},
+	{2640, 0x06, 0x8e, 1940},
+	{2730, 0x05, 0x8e, 1985},
+	{2820, 0x04, 0x8e, 2030},
+	{2930, 0x03, 0x8e, 2085},
+	{3030, 0x02, 0x8e, 2135},
+	{3140, 0x01, 0x8e, 2190},
+	{3260, 0x00, 0x8e, 2250},
 };
+
+int r82xx_filter_cali(struct r82xx_priv *priv)
+{
+	uint32_t filt_cal_lo;
+	uint8_t data[5];
+	int rc;
+    uint8_t fil_cal_code;
+
+	uint8_t range = r82xx_read_cache_reg(priv, 0x0b) & 0x60;
+
+	/* mean clock frequencies of the SC filter */
+    if (range == 0) filt_cal_lo = 73120;
+	else if (range == 0x60)	filt_cal_lo = 53350;
+	else filt_cal_lo = 61640;
+
+	for (int i = 0; i < 2; i++)
+	{
+		// set cali clk =on
+		rc = r82xx_write_reg_mask(priv, 0x0f, 0x04, 0x04);
+		if (rc < 0)	return rc;
+
+		rc = r82xx_set_pll(priv, filt_cal_lo * 1000);
+		if (rc < 0)	return rc;
+
+		/* Start Trigger */
+		rc = r82xx_write_reg_mask(priv, 0x0b, 0x10, 0x10);
+		if (rc < 0)	return rc;
+
+		usleep(1000);
+
+		// Stop Trigger
+		rc = r82xx_write_reg_mask(priv, 0x0b, 0x00, 0x10);
+		if (rc < 0) return rc;
+
+		// set cali clk =off
+		rc = r82xx_write_reg_mask(priv, 0x0f, 0x00, 0x04);
+		if (rc < 0)	return rc;
+
+		rc = r82xx_read(priv, data, sizeof(data));
+		if (rc < 0)	return rc;
+		fil_cal_code = data[4] & 0x0f;
+
+		/* Check if calibration worked */
+		if (fil_cal_code > 4 && fil_cal_code < 12) // mean value is 8
+		{
+			priv->fil_cal_code = fil_cal_code;
+			printf("Calibrating the tuner filter with %d kHz = %x\n", filt_cal_lo, fil_cal_code);
+			break;
+		}
+	}
+	return 0;
+}
 
 int r82xx_set_bandwidth(struct r82xx_priv *priv, int bw, uint32_t * applied_bw, int apply)
 {
-	int rc;
-	unsigned int i;
+	int rc, i, lp;
+	int diff = priv->fil_cal_code - 8; // mean cal code is 8
 
-	for(i=0; i < ARRAY_SIZE(r82xx) - 1; ++i)
+	for(i=0; i < (int)ARRAY_SIZE(r82xx) - 1; ++i)
 	{
 		/* bandwidth is compared to median of the current and next available bandwidth in the table */
 		if (bw < (r82xx[i+1].bw + r82xx[i].bw) * 500)
@@ -1221,7 +1287,10 @@ int r82xx_set_bandwidth(struct r82xx_priv *priv, int bw, uint32_t * applied_bw, 
 	else
 		return 0;
 
-	rc = r82xx_write_reg_mask(priv, 0x0a, r82xx[i].lp, 0x0f);
+    lp = r82xx[i].lp + diff;
+    if (lp < 0) lp = 0;
+    if (lp > 15) lp = 15;
+	rc = r82xx_write_reg_mask(priv, 0x0a, lp, 0x0f);
 	if (rc < 0)
 		return rc;
 
@@ -1264,7 +1333,7 @@ int r82xx_set_freq(struct r82xx_priv *priv, uint32_t freq)
 
 	/* if it's an RTL-SDR Blog V4, automatically upconvert by 28.8 MHz if we tune to HF
 	 * so that we don't need to manually set any upconvert offset in the SDR software */
-	upconvert_freq = (is_rtlsdr_blog_v4 || is_rtlsdr_blog_v4l) ? ((freq <= MHZ(27)) ? (freq + priv->cfg->xtal) : freq) : freq;
+	upconvert_freq = (is_rtlsdr_blog_v4 || is_rtlsdr_blog_v4l) ? ((freq < MHZ(27)) ? (freq + priv->cfg->xtal) : freq) : freq;
 
 	priv->freq = freq / 1000000;
 	calculate_abs_gain(priv);
@@ -1286,19 +1355,6 @@ int r82xx_set_freq(struct r82xx_priv *priv, uint32_t freq)
 		 *(to avoid excessive register writes when tuning rapidly)
 		 */
 		band = (freq < MHZ(27)) ? HF : ((freq >= MHZ(27) && freq < MHZ(250)) ? VHF : UHF);
-
-		/* bypass tracking filter for HF to reduce insertion loss,
-		 * the upconverter path doesn't benefit from it.
-		 * Must be outside band-change guard since r82xx_set_mux
-		 * re-applies the tracking filter on every frequency change. */
-		if (band == HF) {
-			rc = r82xx_write_reg_mask(priv, 0x1a, 0x40, 0xc3);
-			if (rc < 0)
-				goto err;
-			rc = r82xx_write_reg(priv, 0x1b, 0x00);
-			if (rc < 0)
-				goto err;
-		}
 
 		/* switch between tuner inputs on the RTL-SDR Blog V4 */
 		if (band != priv->input) {
@@ -1334,20 +1390,7 @@ int r82xx_set_freq(struct r82xx_priv *priv, uint32_t freq)
 		/* select tuner band based on frequency and only switch if there is a band change
 		 *(to avoid excessive register writes when tuning rapidly)
 		 */
-		band = (freq <= MHZ(27)) ? HF : UHF;
-
-		/* bypass tracking filter for HF to reduce insertion loss,
-		 * the upconverter path doesn't benefit from it.
-		 * Must be outside band-change guard since r82xx_set_mux
-		 * re-applies the tracking filter on every frequency change. */
-		if (band == HF) {
-			rc = r82xx_write_reg_mask(priv, 0x1a, 0x40, 0xc3);
-			if (rc < 0)
-				goto err;
-			rc = r82xx_write_reg(priv, 0x1b, 0x00);
-			if (rc < 0)
-				goto err;
-		}
+		band = (freq < MHZ(27)) ? HF : UHF;
 
 		/* switch between tuner inputs on the RTL-SDR Blog V4L */
 		if (band != priv->input) {
@@ -1694,6 +1737,7 @@ int r82xx_init(struct r82xx_priv *priv)
 
 	memset(priv->reg8, 0, 16);
 	priv->old_gain = 255;
+	priv->fil_cal_code = 8;
 
 	if (priv->cfg->cal_imr) // (re)calibration wanted
 	{
@@ -1735,6 +1779,11 @@ int r82xx_init(struct r82xx_priv *priv)
 	rc = r82xx_write_reg_mask(priv, 0x08, priv->reg8[12], 0x3f);
 	if(rc < 0)
 		goto err;
+
+	r82xx_filter_cali(priv);
+	if(rc < 0)
+		goto err;
+
 	priv->init_done = 1;
 
 err:
